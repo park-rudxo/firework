@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "name": "한강 불꽃축제 발사 지점 (씨드 데이터)",
+    "confidence": "approx",
+    "note": "공개 보도 기준 원효대교~한강철교 사이 수상 바지선 배치를 근사한 값. 매년 배치가 바뀌므로 주최 측 배치도로 갱신할 것.",
+    "water_elev_m": 3.0
+  },
+  "sites": [
+    {
+      "id": "barge_main",
+      "name": "주 바지선 (여의도 앞 한강 중앙)",
+      "lat": 37.5210,
+      "lon": 126.9470,
+      "base_elev_m": 3.0,
+      "kind": "barge",
+      "note": "메인 스타마인·피날레가 올라가는 지점"
+    },
+    {
+      "id": "barge_west",
+      "name": "서편 바지선 (63스퀘어 앞)",
+      "lat": 37.5188,
+      "lon": 126.9425,
+      "base_elev_m": 3.0,
+      "kind": "barge",
+      "note": "해외팀 연출이 자주 배정되는 지점"
+    },
+    {
+      "id": "barge_east",
+      "name": "동편 바지선 (한강철교 방향)",
+      "lat": 37.5192,
+      "lon": 126.9528,
+      "base_elev_m": 3.0,
+      "kind": "barge"
+    },
+    {
+      "id": "wonhyo_bridge",
+      "name": "원효대교 (교량 연출)",
+      "lat": 37.5248,
+      "lon": 126.9492,
+      "base_elev_m": 18.0,
+      "kind": "bridge",
+      "note": "나이아가라 폭포형 저고도 연출"
+    },
+    {
+      "id": "tower63_roof",
+      "name": "63스퀘어 옥상",
+      "lat": 37.5199,
+      "lon": 126.9403,
+      "base_elev_m": 260.0,
+      "kind": "rooftop"
+    }
+  ]
+}

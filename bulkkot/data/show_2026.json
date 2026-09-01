@@ -1,0 +1,68 @@
+{
+  "id": "siff_typical",
+  "name": "한강 불꽃축제 (전형적 프로그램 모델)",
+  "date": "2026-10-03",
+  "start_time": "19:20",
+  "meta": {
+    "confidence": "model",
+    "note": "특정 연도의 확정 큐시트가 아니라, 역대 진행 방식을 근사한 고도·시간 모델. 실제 큐시트가 나오면 이 파일만 교체하면 된다."
+  },
+  "effects": [
+    {
+      "id": "opening_low",
+      "name": "개막 수상 저고도 연출",
+      "site_id": "barge_main",
+      "start_min": 0, "end_min": 8,
+      "alt_min_m": 5, "alt_max_m": 60,
+      "weight": 0.6, "spread_m": 80
+    },
+    {
+      "id": "team_a",
+      "name": "1부 해외팀 (중고도)",
+      "site_id": "barge_west",
+      "start_min": 8, "end_min": 25,
+      "alt_min_m": 60, "alt_max_m": 220,
+      "weight": 1.0, "spread_m": 150
+    },
+    {
+      "id": "niagara",
+      "name": "원효대교 나이아가라",
+      "site_id": "wonhyo_bridge",
+      "start_min": 25, "end_min": 30,
+      "alt_min_m": 0, "alt_max_m": 20,
+      "weight": 0.5, "spread_m": 60
+    },
+    {
+      "id": "team_b",
+      "name": "2부 해외팀 (중·고고도)",
+      "site_id": "barge_east",
+      "start_min": 30, "end_min": 47,
+      "alt_min_m": 80, "alt_max_m": 260,
+      "weight": 1.0, "spread_m": 170
+    },
+    {
+      "id": "korea_starmine",
+      "name": "한국팀 스타마인",
+      "site_id": "barge_main",
+      "start_min": 47, "end_min": 62,
+      "alt_min_m": 120, "alt_max_m": 330,
+      "weight": 1.4, "spread_m": 210
+    },
+    {
+      "id": "tower_accent",
+      "name": "63스퀘어 옥상 연출",
+      "site_id": "tower63_roof",
+      "start_min": 55, "end_min": 70,
+      "alt_min_m": 0, "alt_max_m": 70,
+      "weight": 0.4, "spread_m": 90
+    },
+    {
+      "id": "finale",
+      "name": "피날레 대형 화포",
+      "site_id": "barge_main",
+      "start_min": 62, "end_min": 70,
+      "alt_min_m": 150, "alt_max_m": 420,
+      "weight": 1.6, "spread_m": 280
+    }
+  ]
+}

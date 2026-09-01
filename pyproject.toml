@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bulkkot"
+version = "0.1.0"
+description = "한강 불꽃축제가 실제로 보이는 자리를, 발사 고도와 건물·능선 높이로 계산한다"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+bulkkot = "bulkkot.cli:main"
+
+[tool.setuptools]
+packages = ["bulkkot", "bulkkot.providers"]
+
+[tool.setuptools.package-data]
+bulkkot = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

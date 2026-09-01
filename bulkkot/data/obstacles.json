@@ -1,0 +1,366 @@
+{
+  "meta": {
+    "name": "시선 차폐물 (씨드 데이터)",
+    "confidence": "approx",
+    "note": "실제 운영에서는 국토교통부 건물통합정보(높이 포함) 또는 VWorld 3D 건물, 그리고 국토지리정보원 수치표고모델로 교체할 것. 아래 값은 엔진 검증용 근사치이며 위치·높이 모두 오차가 있다.",
+    "replace_with": "bulkkot.providers.overpass / bulkkot.providers.vworld / bulkkot.providers.local_geojson",
+    "massing_note": "id가 massing_ 로 시작하는 항목은 개별 건물이 아니라 시가지 전체를 하나의 덩어리로 뭉뚱그린 근사 블록이다. 실제 건물 데이터를 붙이면 지워야 한다."
+  },
+  "buildings": [
+    {
+      "id": "b63",
+      "name": "63스퀘어",
+      "rect": {
+        "lat": 37.5199,
+        "lon": 126.9403,
+        "width_m": 60,
+        "depth_m": 60
+      },
+      "ground_elev_m": 10,
+      "height_m": 250
+    },
+    {
+      "id": "parkone1",
+      "name": "파크원 타워1",
+      "rect": {
+        "lat": 37.5259,
+        "lon": 126.927,
+        "width_m": 65,
+        "depth_m": 65
+      },
+      "ground_elev_m": 12,
+      "height_m": 318
+    },
+    {
+      "id": "parkone2",
+      "name": "파크원 타워2",
+      "rect": {
+        "lat": 37.5265,
+        "lon": 126.9283,
+        "width_m": 55,
+        "depth_m": 55
+      },
+      "ground_elev_m": 12,
+      "height_m": 172
+    },
+    {
+      "id": "ifc3",
+      "name": "서울 IFC Three",
+      "rect": {
+        "lat": 37.5252,
+        "lon": 126.9256,
+        "width_m": 50,
+        "depth_m": 50
+      },
+      "ground_elev_m": 12,
+      "height_m": 279
+    },
+    {
+      "id": "fki",
+      "name": "FKI타워",
+      "rect": {
+        "lat": 37.5288,
+        "lon": 126.9238,
+        "width_m": 55,
+        "depth_m": 55
+      },
+      "ground_elev_m": 12,
+      "height_m": 245
+    },
+    {
+      "id": "sibeom",
+      "name": "여의도 시범아파트 열",
+      "rect": {
+        "lat": 37.5232,
+        "lon": 126.9312,
+        "width_m": 420,
+        "depth_m": 90
+      },
+      "ground_elev_m": 10,
+      "height_m": 40
+    },
+    {
+      "id": "ichon_wall",
+      "name": "이촌동 강변 아파트 벽",
+      "rect": {
+        "lat": 37.5188,
+        "lon": 126.969,
+        "width_m": 1400,
+        "depth_m": 140
+      },
+      "ground_elev_m": 12,
+      "height_m": 62
+    },
+    {
+      "id": "chelitus",
+      "name": "래미안 첼리투스",
+      "rect": {
+        "lat": 37.5196,
+        "lon": 126.9758,
+        "width_m": 120,
+        "depth_m": 60
+      },
+      "ground_elev_m": 12,
+      "height_m": 202
+    },
+    {
+      "id": "dragoncity",
+      "name": "서울드래곤시티",
+      "rect": {
+        "lat": 37.529,
+        "lon": 126.9642,
+        "width_m": 120,
+        "depth_m": 70
+      },
+      "ground_elev_m": 20,
+      "height_m": 130
+    },
+    {
+      "id": "amore",
+      "name": "아모레퍼시픽 본사",
+      "rect": {
+        "lat": 37.5273,
+        "lon": 126.9722,
+        "width_m": 110,
+        "depth_m": 110
+      },
+      "ground_elev_m": 18,
+      "height_m": 110
+    },
+    {
+      "id": "noryangjin_wall",
+      "name": "노량진 강변 건물 열",
+      "rect": {
+        "lat": 37.5142,
+        "lon": 126.945,
+        "width_m": 900,
+        "depth_m": 110
+      },
+      "ground_elev_m": 14,
+      "height_m": 48
+    },
+    {
+      "id": "yeouido_park_screen",
+      "name": "여의도 강변 수변 상가·방음벽",
+      "rect": {
+        "lat": 37.524,
+        "lon": 126.94,
+        "width_m": 700,
+        "depth_m": 40
+      },
+      "ground_elev_m": 8,
+      "height_m": 12
+    },
+    {
+      "id": "mapo_wall",
+      "name": "마포 강변 아파트 열",
+      "rect": {
+        "lat": 37.5372,
+        "lon": 126.9435,
+        "width_m": 900,
+        "depth_m": 120
+      },
+      "ground_elev_m": 12,
+      "height_m": 58
+    },
+    {
+      "id": "yongsan_park_towers",
+      "name": "용산 파크타워",
+      "rect": {
+        "lat": 37.5232,
+        "lon": 126.9628,
+        "width_m": 200,
+        "depth_m": 90
+      },
+      "ground_elev_m": 16,
+      "height_m": 120
+    },
+    {
+      "id": "massing_yongsan",
+      "name": "용산 이촌·서빙고 시가지 (근사 블록)",
+      "rect": {
+        "lat": 37.5216,
+        "lon": 126.96,
+        "width_m": 1100,
+        "depth_m": 260
+      },
+      "ground_elev_m": 16,
+      "height_m": 58,
+      "source": "massing"
+    },
+    {
+      "id": "massing_wonhyoro",
+      "name": "원효로·청파동 시가지 (근사 블록)",
+      "rect": {
+        "lat": 37.533,
+        "lon": 126.9575,
+        "width_m": 1100,
+        "depth_m": 800
+      },
+      "ground_elev_m": 20,
+      "height_m": 45,
+      "source": "massing"
+    },
+    {
+      "id": "massing_mapo_inland",
+      "name": "마포·공덕 시가지 (근사 블록)",
+      "rect": {
+        "lat": 37.543,
+        "lon": 126.945,
+        "width_m": 1600,
+        "depth_m": 900
+      },
+      "ground_elev_m": 22,
+      "height_m": 55,
+      "source": "massing"
+    },
+    {
+      "id": "massing_yeouido_core",
+      "name": "여의도 업무지구 (근사 블록)",
+      "rect": {
+        "lat": 37.5262,
+        "lon": 126.9245,
+        "width_m": 900,
+        "depth_m": 700
+      },
+      "ground_elev_m": 12,
+      "height_m": 70,
+      "source": "massing"
+    }
+  ],
+  "ridges": [
+    {
+      "id": "noryangjin_ridge",
+      "name": "노량진 언덕 능선",
+      "polyline": [
+        [
+          37.5128,
+          126.94
+        ],
+        [
+          37.5122,
+          126.948
+        ],
+        [
+          37.5118,
+          126.956
+        ]
+      ],
+      "top_elev_m": 58
+    },
+    {
+      "id": "guksabong_ridge",
+      "name": "국사봉·상도동 능선",
+      "polyline": [
+        [
+          37.498,
+          126.932
+        ],
+        [
+          37.4968,
+          126.94
+        ],
+        [
+          37.4962,
+          126.948
+        ]
+      ],
+      "top_elev_m": 176
+    },
+    {
+      "id": "seodalsan_ridge",
+      "name": "서달산 능선",
+      "polyline": [
+        [
+          37.4982,
+          126.96
+        ],
+        [
+          37.497,
+          126.969
+        ],
+        [
+          37.4962,
+          126.977
+        ]
+      ],
+      "top_elev_m": 172
+    },
+    {
+      "id": "namsan_ridge",
+      "name": "남산 능선",
+      "polyline": [
+        [
+          37.5488,
+          126.976
+        ],
+        [
+          37.5512,
+          126.988
+        ],
+        [
+          37.5522,
+          126.998
+        ]
+      ],
+      "top_elev_m": 262
+    },
+    {
+      "id": "eungbong_ridge",
+      "name": "응봉산",
+      "polyline": [
+        [
+          37.5455,
+          127.029
+        ],
+        [
+          37.547,
+          127.033
+        ],
+        [
+          37.548,
+          127.037
+        ]
+      ],
+      "top_elev_m": 94
+    },
+    {
+      "id": "maebong_ridge",
+      "name": "용산 매봉산",
+      "polyline": [
+        [
+          37.5382,
+          126.984
+        ],
+        [
+          37.5392,
+          126.99
+        ],
+        [
+          37.5398,
+          126.9955
+        ]
+      ],
+      "top_elev_m": 98
+    },
+    {
+      "id": "wausan_ridge",
+      "name": "와우산 능선",
+      "polyline": [
+        [
+          37.55,
+          126.9215
+        ],
+        [
+          37.5512,
+          126.9255
+        ],
+        [
+          37.552,
+          126.9295
+        ]
+      ],
+      "top_elev_m": 98
+    }
+  ]
+}

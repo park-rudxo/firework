@@ -1,0 +1,302 @@
+{
+  "meta": {
+    "name": "관람 후보지 (씨드 데이터)",
+    "confidence": "approx",
+    "note": "좌표·지반고는 근사치. crowd/access는 현장 경험을 0~1로 옮긴 주관값이며, 사용자가 자기 기준으로 고쳐 쓰는 것을 전제로 한다."
+  },
+  "spots": [
+    {
+      "id": "yeouido_event",
+      "name": "여의도한강공원 이벤트광장",
+      "lat": 37.5265,
+      "lon": 126.9337,
+      "ground_elev_m": 8,
+      "crowd": 0.98,
+      "access": 0.95,
+      "famous": true,
+      "tags": [
+        "원조명당",
+        "통제구역"
+      ],
+      "note": "정면·최단거리. 대신 오후부터 자리싸움"
+    },
+    {
+      "id": "ichon_park",
+      "name": "이촌한강공원",
+      "lat": 37.5165,
+      "lon": 126.965,
+      "ground_elev_m": 8,
+      "crowd": 0.9,
+      "access": 0.8,
+      "famous": true,
+      "tags": [
+        "강 건너 정면"
+      ],
+      "note": "반대편 강변. 수면 반사가 좋다"
+    },
+    {
+      "id": "nodeulseom",
+      "name": "노들섬",
+      "lat": 37.517,
+      "lon": 126.9583,
+      "ground_elev_m": 10,
+      "crowd": 0.85,
+      "access": 0.8,
+      "famous": true,
+      "tags": [
+        "섬"
+      ],
+      "note": "정면 근거리. 입장 통제 가능성"
+    },
+    {
+      "id": "sayuksin",
+      "name": "사육신공원",
+      "lat": 37.513,
+      "lon": 126.9432,
+      "ground_elev_m": 48,
+      "crowd": 0.5,
+      "access": 0.7,
+      "tags": [
+        "고지대",
+        "언덕"
+      ],
+      "note": "노량진 언덕 위. 강 쪽으로 트임"
+    },
+    {
+      "id": "yongyangbong",
+      "name": "용양봉저정공원",
+      "lat": 37.5117,
+      "lon": 126.953,
+      "ground_elev_m": 55,
+      "crowd": 0.45,
+      "access": 0.65,
+      "tags": [
+        "고지대",
+        "전망데크"
+      ],
+      "note": "한강대교·노들섬 너머로 보인다"
+    },
+    {
+      "id": "bondong",
+      "name": "본동어울마당",
+      "lat": 37.5108,
+      "lon": 126.9498,
+      "ground_elev_m": 40,
+      "crowd": 0.35,
+      "access": 0.6,
+      "tags": [
+        "동네",
+        "고지대"
+      ],
+      "note": "노들역에서 언덕길"
+    },
+    {
+      "id": "cheongam",
+      "name": "청암동 강변 (원효대교 북단)",
+      "lat": 37.5312,
+      "lon": 126.9452,
+      "ground_elev_m": 8,
+      "crowd": 0.55,
+      "access": 0.5,
+      "tags": [
+        "강변",
+        "북측"
+      ],
+      "note": "발사선 바로 북쪽"
+    },
+    {
+      "id": "seobinggo",
+      "name": "서빙고 한강공원",
+      "lat": 37.5185,
+      "lon": 126.988,
+      "ground_elev_m": 8,
+      "crowd": 0.4,
+      "access": 0.45,
+      "tags": [
+        "강변",
+        "원거리"
+      ],
+      "note": "동쪽 강변. 강 축을 따라 본다"
+    },
+    {
+      "id": "seonyudo",
+      "name": "선유도공원",
+      "lat": 37.544,
+      "lon": 126.899,
+      "ground_elev_m": 15,
+      "crowd": 0.5,
+      "access": 0.6,
+      "tags": [
+        "섬",
+        "서측"
+      ],
+      "note": "서쪽에서 강을 따라 본다"
+    },
+    {
+      "id": "haneul_park",
+      "name": "하늘공원",
+      "lat": 37.57,
+      "lon": 126.883,
+      "ground_elev_m": 95,
+      "crowd": 0.5,
+      "access": 0.35,
+      "tags": [
+        "고지대",
+        "원거리"
+      ],
+      "note": "멀지만 시야 방해가 거의 없다"
+    },
+    {
+      "id": "eungbong",
+      "name": "응봉산 팔각정",
+      "lat": 37.5468,
+      "lon": 127.0325,
+      "ground_elev_m": 95,
+      "crowd": 0.45,
+      "access": 0.5,
+      "tags": [
+        "고지대",
+        "원거리",
+        "야경"
+      ],
+      "note": "한강 상류 방향에서 파노라마"
+    },
+    {
+      "id": "namsan_tower",
+      "name": "남산 서울타워 전망대",
+      "lat": 37.5512,
+      "lon": 126.9882,
+      "ground_elev_m": 243,
+      "eye_height_m": 130,
+      "crowd": 0.8,
+      "access": 0.6,
+      "famous": true,
+      "tags": [
+        "전망대",
+        "실내"
+      ],
+      "note": "높이로 다 넘겨보지만 거리가 멀다"
+    },
+    {
+      "id": "dalmasa",
+      "name": "서달산 달마사 전망",
+      "lat": 37.4978,
+      "lon": 126.9662,
+      "ground_elev_m": 155,
+      "crowd": 0.2,
+      "access": 0.3,
+      "tags": [
+        "고지대",
+        "한산"
+      ],
+      "note": "동작구 산자락. 오르막이 있다"
+    },
+    {
+      "id": "guksabong",
+      "name": "국사봉 (상도동)",
+      "lat": 37.4968,
+      "lon": 126.9385,
+      "ground_elev_m": 179,
+      "crowd": 0.15,
+      "access": 0.25,
+      "tags": [
+        "고지대",
+        "한산"
+      ],
+      "note": "동네 뒷산. 정상부에서만 트인다"
+    },
+    {
+      "id": "hyochang",
+      "name": "효창공원",
+      "lat": 37.5455,
+      "lon": 126.9612,
+      "ground_elev_m": 55,
+      "crowd": 0.3,
+      "access": 0.6,
+      "tags": [
+        "공원",
+        "북측"
+      ],
+      "note": "북쪽 내륙. 앞 건물 영향이 크다"
+    },
+    {
+      "id": "mapo_river",
+      "name": "마포 토정 강변",
+      "lat": 37.5352,
+      "lon": 126.9438,
+      "ground_elev_m": 8,
+      "crowd": 0.55,
+      "access": 0.6,
+      "tags": [
+        "강변",
+        "북측"
+      ]
+    },
+    {
+      "id": "yanghwa",
+      "name": "양화한강공원",
+      "lat": 37.539,
+      "lon": 126.904,
+      "ground_elev_m": 8,
+      "crowd": 0.4,
+      "access": 0.5,
+      "tags": [
+        "강변",
+        "서측"
+      ]
+    },
+    {
+      "id": "seogang_south",
+      "name": "서강대교 남단 (밤섬 조망)",
+      "lat": 37.532,
+      "lon": 126.925,
+      "ground_elev_m": 8,
+      "crowd": 0.6,
+      "access": 0.7,
+      "tags": [
+        "강변"
+      ],
+      "note": "여의도 서편. 파크원이 시야에 든다"
+    },
+    {
+      "id": "ichon_inland",
+      "name": "이촌동 내륙 (아파트 뒤)",
+      "lat": 37.5218,
+      "lon": 126.9718,
+      "ground_elev_m": 14,
+      "crowd": 0.3,
+      "access": 0.55,
+      "tags": [
+        "대조군"
+      ],
+      "note": "거리는 가깝지만 서쪽 시가지에 막히는 대조군"
+    },
+    {
+      "id": "dongjak_deck",
+      "name": "동작대교 전망데크",
+      "lat": 37.5108,
+      "lon": 126.9795,
+      "ground_elev_m": 20,
+      "eye_height_m": 12,
+      "crowd": 0.5,
+      "access": 0.55,
+      "tags": [
+        "교량",
+        "데크"
+      ]
+    },
+    {
+      "id": "wausan",
+      "name": "와우산 (홍대 뒤)",
+      "lat": 37.5512,
+      "lon": 126.9255,
+      "ground_elev_m": 99,
+      "crowd": 0.3,
+      "access": 0.5,
+      "tags": [
+        "고지대",
+        "북측"
+      ]
+    }
+  ]
+}
