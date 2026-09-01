@@ -21,7 +21,7 @@ bulkkot = "bulkkot.cli:main"
 packages = ["bulkkot", "bulkkot.providers"]
 
 [tool.setuptools.package-data]
-bulkkot = ["data/*.json"]
+bulkkot = ["data/*.json", "data/*.html", "data/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,849 @@
+<title>한강 불꽃 관측도</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 야간 해도(海圖) 한 장. 단일 테마로 의도적으로 고정한다. */
+:root{
+  --ink:#0e1a24; --ink-2:#152532; --panel:#182936; --line:#28404f;
+  --paper:#e9e2d3; --paper-dim:#9fb0bd; --paper-faint:#6d8595;
+  --river:#12303d; --signal:#ff6f5b;
+  --e0:#33444f; --e1:#7a5540; --e2:#c07a38; --e3:#e8a13f; --e4:#f7d070;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--paper);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  font-weight:300;line-height:1.65;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Gowun Batang","Nanum Myeongjo",Georgia,serif;font-weight:700;
+  text-wrap:balance;margin:0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.02em;color:var(--paper-faint);font-weight:400}
+
+header{padding:28px 28px 20px;border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;justify-content:space-between}
+header h1{font-size:30px;letter-spacing:-.01em}
+header .sub{color:var(--paper-dim);font-size:13.5px;max-width:60ch;margin-top:6px}
+.badge{border:1px solid var(--line);border-radius:2px;padding:7px 11px;font-size:11.5px;
+  color:var(--paper-dim);background:var(--ink-2);max-width:44ch;line-height:1.5}
+
+main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,.9fr)}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+.chart{padding:16px 22px 8px;min-width:0}
+.rail{border-left:1px solid var(--line);padding:20px 22px 40px;min-width:0}
+@media (max-width:1000px){.rail{border-left:0;border-top:1px solid var(--line)}}
+
+/* 큐시트 스크러버 */
+.cue{padding:14px 24px 18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.cue-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap}
+.cue-now{font-size:15px}
+.cue-now b{font-family:"Gowun Batang",serif}
+.track{position:relative;height:44px;margin-top:12px}
+.band{position:absolute;top:0;height:26px;border:1px solid var(--line);border-radius:1px;
+  background:var(--ink-2);font-size:10.5px;color:var(--paper-dim);overflow:hidden;
+  white-space:nowrap;padding:4px 6px;cursor:pointer}
+.band.on{background:linear-gradient(180deg,#2c4453,#1d3140);border-color:var(--e3);color:var(--paper)}
+.ticks{position:absolute;top:30px;left:0;right:0;height:14px;font-size:10px;color:var(--paper-faint)}
+.ticks span{position:absolute;transform:translateX(-50%)}
+input[type=range]{width:100%;margin-top:14px;accent-color:var(--e3)}
+input[type=range]:focus-visible{outline:2px solid var(--e3);outline-offset:3px}
+.toggles{display:flex;gap:16px;font-size:11.5px;color:var(--paper-dim);margin-top:12px;flex-wrap:wrap}
+label.tog{cursor:pointer;user-select:none}
+
+/* 뷰 전환 */
+.viewbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+button{font:inherit;font-size:12px;color:var(--paper-dim);background:var(--ink-2);
+  border:1px solid var(--line);border-radius:2px;padding:5px 11px;cursor:pointer}
+button:hover{color:var(--paper);border-color:#3c5a6d}
+button[aria-pressed="true"]{background:#24404f;border-color:var(--e3);color:var(--paper)}
+button:focus-visible{outline:2px solid var(--e3);outline-offset:2px}
+.viewbar .spacer{flex:1}
+.hint{font-size:11px;color:var(--paper-faint)}
+.stage{position:relative;background:linear-gradient(180deg,#0a1420 0%,#0f1e2a 55%,#13242f 100%);
+  border:1px solid var(--line);border-radius:2px;overflow:hidden}
+#scene{display:block;width:100%;height:520px;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
+#scene:focus-visible{outline:2px solid var(--e3);outline-offset:-2px}
+#map{display:block;width:100%;height:auto}
+#scene.hidden, #map.hidden{display:none}
+.exag{position:absolute;right:10px;bottom:9px;font-size:10.5px;color:var(--paper-faint);
+  background:rgba(14,26,36,.78);border:1px solid var(--line);padding:3px 7px;border-radius:2px}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-weight:600;font-size:10.5px;letter-spacing:.04em;
+  color:var(--paper-faint);padding:0 6px 7px;border-bottom:1px solid var(--line)}
+td{padding:7px 6px;border-bottom:1px solid #1e3340;vertical-align:middle}
+tr.row{cursor:pointer}
+tr.row:hover td{background:#162835}
+tr.row.sel td{background:#1d3444}
+td.name{max-width:150px}
+.pct{display:inline-block;min-width:34px;text-align:right}
+.track-mini{display:block;height:4px;border-radius:2px;margin-top:4px;background:#1f333f;overflow:hidden}
+.track-mini i{display:block;height:100%;border-radius:2px}
+.chip{display:inline-block;font-size:9.5px;letter-spacing:.06em;border:1px solid var(--line);
+  border-radius:2px;padding:1px 5px;color:var(--paper-faint);margin-left:5px;vertical-align:1px}
+.chip.warn{color:var(--signal);border-color:#5a3630}
+
+.detail{margin:14px 0 8px;padding-top:16px;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:minmax(230px,340px) minmax(0,1fr);gap:6px 26px;align-items:start}
+.detail > .eyebrow, .detail > h3{grid-column:1 / -1}
+.detail h3{font-size:19px;margin-bottom:2px}
+@media (max-width:720px){.detail{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px;margin-top:4px}
+.kv dt{color:var(--paper-faint)}
+.kv dd{margin:0}
+.section-svg{width:100%;background:var(--ink-2);border:1px solid var(--line)}
+.section-note{margin-top:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--paper-dim);padding:10px 0 4px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+footer{padding:18px 28px 34px;border-top:1px solid var(--line);color:var(--paper-faint);
+  font-size:11.5px;line-height:1.7}
+</style>
+
+<header>
+  <div>
+    <div class="eyebrow">가시선 계산 · 최소 가시 고도</div>
+    <h1>한강 불꽃 관측도</h1>
+    <p class="sub" id="subtitle"></p>
+  </div>
+  <div class="badge" id="databadge"></div>
+</header>
+
+<div class="cue">
+  <div class="cue-head">
+    <div class="cue-now" id="cuenow"></div>
+    <div class="eyebrow mono" id="cueclock"></div>
+  </div>
+  <div class="track" id="track"><div class="ticks" id="ticks"></div></div>
+  <input type="range" id="time" min="0" max="70" step="1" value="0" aria-label="프로그램 경과 시간(분)">
+  <div class="toggles">
+    <label class="tog"><input type="checkbox" id="tgFamous" checked> 이미 유명한 명당도 표시</label>
+    <label class="tog"><input type="checkbox" id="tgGrid"> 격자 탐색 결과</label>
+    <label class="tog"><input type="checkbox" id="tgObs" checked> 차폐물</label>
+  </div>
+</div>
+
+<main>
+  <div class="chart">
+    <div class="viewbar">
+      <button id="btn3d" aria-pressed="true">3D 조감</button>
+      <button id="btnFp" aria-pressed="false">이 자리에서 보기</button>
+      <button id="btn2d" aria-pressed="false">평면도</button>
+      <span class="spacer"></span>
+      <span class="hint" id="viewhint"></span>
+    </div>
+    <div class="stage">
+      <canvas id="scene" tabindex="0" aria-label="한강 일대 3D 가시성 장면"></canvas>
+      <svg id="map" class="hidden" role="img" aria-label="한강 일대 불꽃 가시성 평면도"></svg>
+      <div class="exag" id="exag"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="detail" id="detail"></div>
+  </div>
+  <aside class="rail">
+    <div class="eyebrow">지금 이 순간 보이는 정도</div>
+    <table>
+      <thead><tr><th>자리</th><th>보임</th><th>거리</th><th>최소고도</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </aside>
+</main>
+
+<footer id="footer"></footer>
+
+<script>
+const DATA = /*__PAYLOAD__*/null;
+const CSS = getComputedStyle(document.documentElement);
+const RAMP = ['--e0','--e1','--e2','--e3','--e4'].map(v=>CSS.getPropertyValue(v).trim());
+
+/* ══ 색 ══ */
+function mix(a,b,t){
+  const pa=[1,3,5].map(i=>parseInt(a.substr(i,2),16));
+  const pb=[1,3,5].map(i=>parseInt(b.substr(i,2),16));
+  return '#'+pa.map((v,i)=>Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,'0')).join('');
+}
+function rampColor(f){
+  if (f <= 0) return RAMP[0];
+  const t = Math.min(1,f)*(RAMP.length-1), i = Math.min(RAMP.length-2, Math.floor(t));
+  return mix(RAMP[i], RAMP[i+1], t-i);
+}
+function shade(hex, k){          // k<1 어둡게, k>1 밝게
+  const p=[1,3,5].map(i=>parseInt(hex.substr(i,2),16));
+  return '#'+p.map(v=>Math.max(0,Math.min(255,Math.round(v*k))).toString(16).padStart(2,'0')).join('');
+}
+
+/* ══ 좌표: 위경도 → 로컬 미터 (동, 북) ══ */
+const REF = [
+  DATA.sites.reduce((a,s)=>a+s.lat,0)/DATA.sites.length,
+  DATA.sites.reduce((a,s)=>a+s.lon,0)/DATA.sites.length,
+];
+const R_E = 6378137, D2R = Math.PI/180;
+const KX = Math.cos(REF[0]*D2R);
+const en = (lat,lon) => [ (lon-REF[1])*D2R*R_E*KX, (lat-REF[0])*D2R*R_E ];
+
+/* ══ 상태 ══ */
+let minute = 0;
+let selected = DATA.spots.length ? DATA.spots[0].id : null;
+let view = '3d';                 // '3d' | 'fp' | '2d'
+let exag = 2.0;                  // 높이 강조 배율
+const spotById = Object.fromEntries(DATA.spots.map(s=>[s.id,s]));
+const siteById = Object.fromEntries(DATA.sites.map(s=>[s.id,s]));
+
+const cam = { az: 2.34, el: 0.50, dist: 6800 };   // 남동쪽 상공에서 북서를 본다
+
+function activeEffects(m){
+  return DATA.show.effects.filter(e => m >= e.start_min && m < e.end_min);
+}
+function visibilityAt(spot, m){
+  const acts = activeEffects(m);
+  if (!acts.length) return {frac:0, effects:[]};
+  let num=0, den=0;
+  for (const e of acts){
+    const st = spot.sights[e.site_id];
+    if (!st) continue;
+    const span = e.alt_max_m - e.alt_min_m;
+    const f = span <= 0
+      ? (st.min_visible_alt_m <= e.alt_min_m ? 1 : 0)
+      : Math.max(0, Math.min(1, (e.alt_max_m - Math.max(st.min_visible_alt_m, e.alt_min_m))/span));
+    num += e.weight*f; den += e.weight;
+  }
+  return {frac: den ? num/den : 0, effects: acts};
+}
+function mainEffect(m){
+  const acts = activeEffects(m);
+  if (!acts.length) return null;
+  return acts.reduce((a,b)=> b.weight > a.weight ? b : a);
+}
+
+/* ══════════════════════════════════════════════════
+   3D 장면 — 의존성 없이 캔버스에 직접 그린다.
+   화가 알고리즘(먼 면부터)으로 충분하다. 면 수가 수천 개를 넘지 않고,
+   서로 관통하는 형상이 없기 때문이다.
+   ══════════════════════════════════════════════════ */
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const NEAR = 12, FOV = 42*D2R;
+const LIGHT = [-0.5, -0.72, 0.48];   // 북서쪽 위에서 비추는 약한 광원
+
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm=v=>{const l=Math.hypot(...v)||1; return [v[0]/l,v[1]/l,v[2]/l];};
+
+let VP = {w:0, h:0, f:0, eye:[0,0,0], r:[1,0,0], u:[0,0,1], fwd:[0,1,0]};
+
+function setupCamera(){
+  const sel = spotById[selected];
+  let eye, target;
+  if (view === 'fp' && sel){
+    const [x,y] = en(sel.lat, sel.lon);
+    eye = [x, y, (sel.ground_elev_m + 1.6) * exag + 1];
+    const site = siteById[sel.profile.site_id];
+    const act = mainEffect(minute);
+    const alt = act ? (act.alt_min_m + act.alt_max_m)/2 : 200;
+    const [sx,sy] = en(site.lat, site.lon);
+    target = [sx, sy, (site.base_elev_m + alt) * exag];
+  } else {
+    target = [0, 0, 200*exag];
+    const ce = Math.cos(cam.el), se = Math.sin(cam.el);
+    eye = [target[0] + cam.dist*ce*Math.sin(cam.az),
+           target[1] + cam.dist*ce*Math.cos(cam.az),
+           Math.max(120, target[2] + cam.dist*se)];
+  }
+  const fwd = norm(sub(target, eye));
+  let r = cross(fwd, [0,0,1]);
+  if (Math.hypot(r[0],r[1],r[2]) < 1e-6) r = [1,0,0];
+  r = norm(r);
+  const u = cross(r, fwd);
+  const h = canvas.clientHeight;
+  // 주점을 살짝 아래로 내려 하늘의 빈 곳 대신 지면을 더 담는다
+  VP = {w:canvas.clientWidth, h, cx:canvas.clientWidth/2, cy:h*0.56,
+        f:(h/2)/Math.tan(FOV/2), eye, r, u, fwd};
+}
+const toCam = p => { const v = sub(p, VP.eye); return [dot(v,VP.r), dot(v,VP.u), dot(v,VP.fwd)]; };
+const proj  = c => [VP.cx + VP.f*c[0]/c[2], VP.cy - VP.f*c[1]/c[2]];
+
+/* 근평면 클리핑 — 관람자 시점에서 코앞의 건물이 뒤집히는 것을 막는다 */
+function clipNear(pts){
+  const out = [];
+  for (let i=0;i<pts.length;i++){
+    const a = pts[i], b = pts[(i+1)%pts.length];
+    const ina = a[2] >= NEAR, inb = b[2] >= NEAR;
+    if (ina) out.push(a);
+    if (ina !== inb){
+      const t = (NEAR - a[2])/(b[2]-a[2]);
+      out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, NEAR]);
+    }
+  }
+  return out;
+}
+
+const draws = [];
+function addPoly(worldPts, fill, stroke, lw){
+  const cs = worldPts.map(toCam);
+  if (cs.every(c=>c[2] < NEAR)) return;
+  const clipped = clipNear(cs);
+  if (clipped.length < 3) return;
+  const depth = cs.reduce((a,c)=>a+c[2],0)/cs.length;
+  const pts = clipped.map(proj);
+  draws.push({depth, run(){
+    ctx.beginPath();
+    pts.forEach((p,i)=> i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]));
+    ctx.closePath();
+    if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+  }});
+}
+function addLine(a, b, stroke, lw, dash){
+  let ca = toCam(a), cb = toCam(b);
+  if (ca[2] < NEAR && cb[2] < NEAR) return;
+  if (ca[2] < NEAR || cb[2] < NEAR){
+    const t = (NEAR - ca[2])/(cb[2]-ca[2]);
+    const mid = [ca[0]+(cb[0]-ca[0])*t, ca[1]+(cb[1]-ca[1])*t, NEAR];
+    if (ca[2] < NEAR) ca = mid; else cb = mid;
+  }
+  const depth = (ca[2]+cb[2])/2, pa = proj(ca), pb = proj(cb);
+  draws.push({depth, run(){
+    ctx.setLineDash(dash||[]);
+    ctx.strokeStyle = stroke; ctx.lineWidth = lw||1;
+    ctx.beginPath(); ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke();
+    ctx.setLineDash([]);
+  }});
+}
+function addDot(p, radius, fill, stroke, lw){
+  const c = toCam(p);
+  if (c[2] < NEAR) return;
+  const s = proj(c);
+  draws.push({depth:c[2], run(){
+    ctx.beginPath(); ctx.arc(s[0], s[1], radius, 0, 6.2832);
+    ctx.fillStyle = fill; ctx.fill();
+    if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+  }});
+}
+/* 라벨은 화면 좌표에서 겹침을 걸러야 읽힌다. 우선순위가 높은 것부터 자리를 잡고,
+   이미 놓인 라벨과 부딪히면 그린 뒤에 지우는 대신 아예 그리지 않는다. */
+const labels = [];
+function addText(p, text, fill, size, dy, weight, priority){
+  const c = toCam(p);
+  if (c[2] < NEAR) return;
+  const s = proj(c);
+  labels.push({x:s[0], y:s[1]+(dy||0), text, fill, size:size||11,
+               weight:weight||400, priority:priority||0, depth:c[2]});
+}
+function paintLabels(){
+  labels.sort((a,b)=> b.priority - a.priority || a.depth - b.depth);
+  const placed = [];
+  for (const L of labels){
+    ctx.font = `${L.weight} ${L.size}px "IBM Plex Sans KR", sans-serif`;
+    const w = ctx.measureText(L.text).width, h = L.size*1.15;
+    const box = {x0:L.x-w/2-3, x1:L.x+w/2+3, y0:L.y-h, y1:L.y+4};
+    if (box.x1 < 0 || box.x0 > VP.w || box.y1 < 0 || box.y0 > VP.h) continue;
+    if (placed.some(b=> box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) continue;
+    placed.push(box);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(14,26,36,.55)';
+    ctx.fillText(L.text, L.x+1, L.y+1);
+    ctx.fillStyle = L.fill;
+    ctx.fillText(L.text, L.x, L.y);
+    ctx.textAlign = 'start';
+  }
+}
+
+function drawScene(){
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  setupCamera();
+  draws.length = 0;
+  labels.length = 0;
+
+  const showObs = document.getElementById('tgObs').checked;
+  const showFamous = document.getElementById('tgFamous').checked;
+  const showGrid = document.getElementById('tgGrid').checked;
+  const acts = activeEffects(minute);
+  const act = mainEffect(minute);
+  const sel = spotById[selected];
+
+  /* 지면 */
+  const G = 6000;
+  addPoly([[-G,-G,0],[G,-G,0],[G,G,0],[-G,G,0]], '#101f2b', null, 0);
+  for (let i=-G/1000;i<=G/1000;i++){
+    const v = i*1000;
+    addLine([v,-G,0],[v,G,0],'#182734',1);
+    addLine([-G,v,0],[G,v,0],'#182734',1);
+  }
+
+  /* 한강 */
+  if (DATA.river.polygon && DATA.river.polygon.length){
+    addPoly(DATA.river.polygon.map(([la,lo])=>{const [x,y]=en(la,lo); return [x,y,3*exag];}),
+            '#123543', '#1d4d5f', 1.2);
+  }
+
+  /* 교량 */
+  for (const b of (DATA.landmarks.bridges||[])){
+    if (!b.span || b.span.length < 2) continue;
+    const [a0,a1] = b.span.map(([la,lo])=>{const [x,y]=en(la,lo); return [x,y,20*exag];});
+    const dx = a1[0]-a0[0], dy = a1[1]-a0[1], L = Math.hypot(dx,dy)||1;
+    const nx = -dy/L*16, ny = dx/L*16;
+    addPoly([[a0[0]+nx,a0[1]+ny,a0[2]],[a1[0]+nx,a1[1]+ny,a1[2]],
+             [a1[0]-nx,a1[1]-ny,a1[2]],[a0[0]-nx,a0[1]-ny,a0[2]]], '#2c4453', '#3d5e70', .8);
+    if (view !== 'fp')
+      addText([(a0[0]+a1[0])/2, (a0[1]+a1[1])/2, 20*exag+40], b.name, '#7f97a6', 10, 0, 400, 1);
+  }
+
+  /* 지명 */
+  for (const p of (DATA.landmarks.places||[])){
+    const [x,y] = en(p.lat, p.lon);
+    addText([x,y,10*exag], p.name, '#61809a', 12.5, 0, 400, 2);
+  }
+
+  /* 차폐물 — 건물은 압출, 능선은 커튼 */
+  if (showObs){
+    for (const o of DATA.obstacles){
+      const ring = o.outline.map(([la,lo])=>en(la,lo));
+      if (o.kind === 'ridge'){
+        const top = o.top_elev_m*exag;
+        for (let i=0;i<ring.length-1;i++){
+          const a = ring[i], b = ring[i+1];
+          addPoly([[a[0],a[1],0],[b[0],b[1],0],[b[0],b[1],top],[a[0],a[1],top]],
+                  view === 'fp' ? 'rgba(34,58,58,.85)' : 'rgba(52,86,80,.62)', null, 0);
+          addLine([a[0],a[1],top],[b[0],b[1],top], 'rgba(126,178,164,.75)', 1.4);
+        }
+      } else {
+        const top = o.top_elev_m*exag;
+        const light = Math.min(1, .30 + o.top_elev_m/520);
+        for (let i=0;i<ring.length;i++){
+          const a = ring[i], b = ring[(i+1)%ring.length];
+          const ex = b[0]-a[0], ey = b[1]-a[1], L = Math.hypot(ex,ey)||1;
+          const n = [ey/L, -ex/L, 0];
+          const k = .55 + .45*Math.max(0, dot(n, LIGHT));
+          addPoly([[a[0],a[1],0],[b[0],b[1],0],[b[0],b[1],top],[a[0],a[1],top]],
+                  shade('#4a6579', light*k*1.5), 'rgba(20,34,44,.75)', .5);
+        }
+        addPoly(ring.map(([x,y])=>[x,y,top]), shade('#6d8ea6', light*1.35), 'rgba(20,34,44,.8)', .5);
+      }
+    }
+  }
+
+  /* 격자 탐색 */
+  if (showGrid){
+    for (const g of DATA.grid){
+      const [x,y] = en(g.lat, g.lon);
+      addDot([x,y,4*exag], 2.4, rampColor(g.sky), null, 0);
+    }
+  }
+
+  /* 발사 지점 — 기둥과 지금 터지는 고도 */
+  const apex = Math.max(...DATA.show.effects.map(e=>e.alt_max_m));
+  for (const s of DATA.sites){
+    const [x,y] = en(s.lat, s.lon);
+    const base = s.base_elev_m*exag;
+    addLine([x,y,base],[x,y,(s.base_elev_m+apex)*exag], 'rgba(255,111,91,.22)', 1, [4,6]);
+    const live = acts.find(e=>e.site_id===s.id);
+    if (live){
+      const mid = (s.base_elev_m + (live.alt_min_m+live.alt_max_m)/2)*exag;
+      const p = [x,y,mid];
+      const c = toCam(p);
+      if (c[2] >= NEAR){
+        const sc = proj(c);
+        const rad = Math.max(6, VP.f*(live.spread_m/2)/c[2]);
+        draws.push({depth:c[2]-2, run(){
+          const grd = ctx.createRadialGradient(sc[0],sc[1],0,sc[0],sc[1],rad);
+          grd.addColorStop(0,'rgba(247,208,112,.85)');
+          grd.addColorStop(.45,'rgba(232,161,63,.35)');
+          grd.addColorStop(1,'rgba(232,161,63,0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath(); ctx.arc(sc[0],sc[1],rad,0,6.2832); ctx.fill();
+          ctx.strokeStyle = 'rgba(247,208,112,.6)'; ctx.lineWidth = 1;
+          for (let i=0;i<12;i++){
+            const a = i*Math.PI/6;
+            ctx.beginPath(); ctx.moveTo(sc[0]+Math.cos(a)*rad*.25, sc[1]+Math.sin(a)*rad*.25);
+            ctx.lineTo(sc[0]+Math.cos(a)*rad*.95, sc[1]+Math.sin(a)*rad*.95); ctx.stroke();
+          }
+        }});
+      }
+      // 고도 대역 표시
+      addLine([x,y,(s.base_elev_m+live.alt_min_m)*exag],[x,y,(s.base_elev_m+live.alt_max_m)*exag],
+              'rgba(247,208,112,.8)', 2.5);
+    }
+    addDot([x,y,base], live?5:3, live?'#ff6f5b':'#7d4b45', 'rgba(14,26,36,.9)', 1);
+  }
+
+  /* 관람 후보지 */
+  for (const sp of DATA.spots){
+    if (sp.famous && !showFamous) continue;
+    if (view === 'fp' && sp.id === selected) continue;
+    const [x,y] = en(sp.lat, sp.lon);
+    const gz = sp.ground_elev_m*exag, ez = (sp.ground_elev_m+1.6)*exag;
+    const lift = view === 'fp' ? 8*exag : 70*exag;
+    const v = visibilityAt(sp, minute);
+    const isSel = sp.id === selected;
+    if (gz > 6) addLine([x,y,0],[x,y,gz], 'rgba(120,150,168,.45)', 1);
+    addLine([x,y,gz],[x,y,ez+lift], isSel ? 'rgba(233,226,211,.75)' : 'rgba(140,170,188,.3)', 1);
+    addDot([x,y,ez+lift], isSel?6:4.2, rampColor(v.frac), isSel?'#e9e2d3':'rgba(14,26,36,.9)', isSel?2:1);
+    if (isSel || LABELLED.has(sp.id))
+      addText([x,y,ez+lift], sp.name, isSel?'#e9e2d3':'#9db1be',
+              isSel?12.5:11, -12, isSel?600:400, isSel?9:5);
+  }
+
+  /* 선택한 자리의 시선 — 이 그림의 요점 */
+  if (sel && view !== 'fp'){
+    drawSightline(sel, act);
+  } else if (sel && view === 'fp'){
+    drawSightline(sel, act, true);
+  }
+
+  draws.sort((a,b)=> b.depth - a.depth);
+  ctx.lineJoin = 'round';
+  for (const d of draws) d.run();
+  paintLabels();
+
+  if (view === 'fp' && sel){
+    ctx.strokeStyle = 'rgba(233,226,211,.35)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(VP.cx-9,VP.cy); ctx.lineTo(VP.cx+9,VP.cy);
+    ctx.moveTo(VP.cx,VP.cy-9); ctx.lineTo(VP.cx,VP.cy+9);
+    ctx.stroke();
+  }
+}
+
+function drawSightline(sp, act, firstPerson){
+  const site = siteById[sp.profile.site_id];
+  const st = sp.sights[sp.profile.site_id];
+  const [ex,ey] = en(sp.lat, sp.lon);
+  const [sx,sy] = en(site.lat, site.lon);
+  const eye = [ex, ey, (sp.ground_elev_m+1.6)*exag];
+  const zMva = (site.base_elev_m + st.min_visible_alt_m)*exag;
+
+  if (firstPerson){
+    // 관람자 시점에서는 시선이 한 점으로 뭉쳐 선이 의미가 없다.
+    // 대신 "이 높이 아래로는 안 보인다"는 경계를 하늘에 가로줄로 긋는다.
+    const dx = sx-ex, dy = sy-ey, L = Math.hypot(dx,dy)||1;
+    const nx = -dy/L*450, ny = dx/L*450;
+    addLine([sx-nx, sy-ny, zMva], [sx+nx, sy+ny, zMva], 'rgba(232,161,63,.85)', 1.6, [7,5]);
+    addText([sx+nx, sy+ny, zMva], `${st.min_visible_alt_m.toFixed(0)}m — 이 아래로는 안 보임`,
+            '#e8a13f', 11, -8, 400, 8);
+    if (act && act.site_id === sp.profile.site_id){
+      const mid = (act.alt_min_m + act.alt_max_m)/2;
+      addText([sx, sy, (site.base_elev_m+act.alt_max_m)*exag],
+              `지금 ${act.alt_min_m.toFixed(0)}~${act.alt_max_m.toFixed(0)}m`,
+              mid >= st.min_visible_alt_m ? '#7ed692' : '#ff6f5b', 11.5, -14, 600, 8);
+    }
+    return;
+  }
+
+  // 겨우 보이기 시작하는 높이
+  addLine(eye, [sx, sy, zMva], 'rgba(232,161,63,.9)', 1.6, [6,4]);
+  addDot([sx, sy, zMva], 3.2, '#e8a13f', null, 0);
+  // 지금 터지는 높이
+  if (act && act.site_id === sp.profile.site_id){
+    const mid = (act.alt_min_m + act.alt_max_m)/2;
+    addLine(eye, [sx, sy, (site.base_elev_m + mid)*exag],
+            mid >= st.min_visible_alt_m ? 'rgba(126,214,146,.95)' : 'rgba(255,111,91,.95)', 2);
+  }
+}
+
+/* 궤도 조작 */
+let drag = null;
+canvas.addEventListener('pointerdown', e=>{
+  if (view === '2d') return;
+  drag = {x:e.clientX, y:e.clientY, az:cam.az, el:cam.el};
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e=>{
+  if (!drag || view === 'fp') return;
+  cam.az = drag.az - (e.clientX-drag.x)*0.005;
+  cam.el = Math.max(0.06, Math.min(1.45, drag.el + (e.clientY-drag.y)*0.004));
+  drawScene();
+});
+canvas.addEventListener('pointerup', ()=>{ drag = null; });
+canvas.addEventListener('wheel', e=>{
+  if (view !== '3d') return;
+  e.preventDefault();
+  cam.dist = Math.max(1200, Math.min(26000, cam.dist * (1 + Math.sign(e.deltaY)*0.12)));
+  drawScene();
+}, {passive:false});
+canvas.addEventListener('keydown', e=>{
+  if (view === '2d') return;
+  const step = 0.09;
+  if (e.key === 'ArrowLeft')  cam.az -= step;
+  else if (e.key === 'ArrowRight') cam.az += step;
+  else if (e.key === 'ArrowUp')    cam.el = Math.min(1.45, cam.el + step/2);
+  else if (e.key === 'ArrowDown')  cam.el = Math.max(0.06, cam.el - step/2);
+  else if (e.key === '+' || e.key === '=') cam.dist = Math.max(1200, cam.dist*0.88);
+  else if (e.key === '-') cam.dist = Math.min(26000, cam.dist*1.14);
+  else return;
+  e.preventDefault(); drawScene();
+});
+
+/* ══ 평면도 (SVG) ══ */
+const W2 = 1000, PAD = 30;
+const allPts = [];
+for (const s of DATA.spots) allPts.push([s.lat, s.lon]);
+for (const s of DATA.sites) allPts.push([s.lat, s.lon]);
+for (const p of DATA.river.centerline) allPts.push(p);
+const latMin=Math.min(...allPts.map(p=>p[0])), latMax=Math.max(...allPts.map(p=>p[0]));
+const lonMin=Math.min(...allPts.map(p=>p[1])), lonMax=Math.max(...allPts.map(p=>p[1]));
+const spanX=(lonMax-lonMin)*KX, spanY=(latMax-latMin);
+const sc2=(W2-2*PAD)/spanX, H2=Math.round(spanY*sc2)+2*PAD;
+const px=(lat,lon)=>[PAD+(lon-lonMin)*KX*sc2, PAD+(latMax-lat)*sc2];
+const mpx = sc2/111320;
+
+const LABELLED = new Set([...DATA.spots].sort((a,b)=>b.total-a.total).slice(0,6).map(s=>s.id));
+
+function drawMap2D(){
+  const svg = document.getElementById('map');
+  svg.setAttribute('viewBox', `0 0 ${W2} ${H2}`);
+  const acts = activeEffects(minute);
+  const liveSites = new Set(acts.map(e=>e.site_id));
+  const showObs = document.getElementById('tgObs').checked;
+  const showFamous = document.getElementById('tgFamous').checked;
+  const showGrid = document.getElementById('tgGrid').checked;
+  const poly = pts => pts.map(([la,lo])=>{const [x,y]=px(la,lo); return x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+  let out = '';
+
+  out += `<polygon points="${poly(DATA.river.polygon)}" fill="var(--river)" stroke="#1d4152" stroke-width="1"/>`;
+
+  for (const b of (DATA.landmarks.bridges||[])){
+    if (!b.span) continue;
+    const [p0,p1] = b.span.map(([la,lo])=>px(la,lo));
+    out += `<line x1="${p0[0].toFixed(1)}" y1="${p0[1].toFixed(1)}" x2="${p1[0].toFixed(1)}" y2="${p1[1].toFixed(1)}"
+              stroke="#3d5e70" stroke-width="2.4" stroke-linecap="round"><title>${b.name}</title></line>`;
+  }
+  for (const p of (DATA.landmarks.places||[])){
+    const [x,y] = px(p.lat,p.lon);
+    out += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="11.5" fill="#5f7e91"
+              text-anchor="middle" font-family="IBM Plex Sans KR, sans-serif">${p.name}</text>`;
+  }
+  if (showObs){
+    for (const o of DATA.obstacles){
+      if (o.kind === 'ridge'){
+        out += `<polyline points="${poly(o.outline)}" fill="none" stroke="#3b5a58" stroke-width="2.4"
+                  stroke-dasharray="1 4" stroke-linecap="round"><title>${o.name} · 정상 ${o.top_elev_m}m</title></polyline>`;
+      } else {
+        const a = Math.min(.5, .16 + o.top_elev_m/900);
+        out += `<polygon points="${poly(o.outline)}" fill="rgba(150,170,185,${a.toFixed(2)})"
+                  stroke="#4b6273" stroke-width=".6"><title>${o.name} · 상단 ${o.top_elev_m}m</title></polygon>`;
+      }
+    }
+  }
+  if (showGrid){
+    for (const g of DATA.grid){
+      const [x,y] = px(g.lat,g.lon);
+      out += `<rect x="${(x-2.2).toFixed(1)}" y="${(y-2.2).toFixed(1)}" width="4.4" height="4.4"
+                fill="${rampColor(g.sky)}" opacity=".62"/>`;
+    }
+  }
+  for (const s of DATA.sites){
+    const [x,y] = px(s.lat,s.lon);
+    const live = liveSites.has(s.id);
+    if (live){
+      const e = acts.find(a=>a.site_id===s.id);
+      const r = Math.max(6, (e.spread_m/2)*mpx*2.2);
+      out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="none"
+                stroke="var(--e3)" stroke-width="1.1" opacity=".55"/>`;
+    }
+    out += `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${live?5.4:3.4}"
+              fill="${live?'var(--signal)':'#7d4b45'}"/><title>${s.name}</title></g>`;
+  }
+  for (const sp of DATA.spots){
+    if (sp.famous && !showFamous) continue;
+    const [x,y] = px(sp.lat,sp.lon);
+    const v = visibilityAt(sp, minute), r = 4.5+5.5*sp.total, isSel = sp.id===selected;
+    out += `<g class="spot-g" data-id="${sp.id}" style="cursor:pointer">
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${rampColor(v.frac)}"
+        stroke="${isSel?'var(--paper)':'#0e1a24'}" stroke-width="${isSel?1.8:1}"/>
+      <title>${sp.name} — 지금 ${(v.frac*100).toFixed(0)}% 보임</title></g>`;
+    if (isSel || LABELLED.has(sp.id))
+      out += `<text x="${(x+r+5).toFixed(1)}" y="${(y+3.5).toFixed(1)}" font-size="10.5"
+                fill="${isSel?'var(--paper)':'var(--paper-dim)'}"
+                font-family="IBM Plex Sans KR, sans-serif">${sp.name}</text>`;
+  }
+  // 방위와 축척
+  const bar = 1000*mpx;
+  out += `<g transform="translate(${W2-96},${H2-58})">
+      <line x1="0" y1="0" x2="0" y2="-26" stroke="#7f97a6" stroke-width="1"/>
+      <polygon points="0,-32 -4,-22 4,-22" fill="#7f97a6"/>
+      <text x="0" y="12" font-size="10" fill="#7f97a6" text-anchor="middle">N</text>
+    </g>
+    <g transform="translate(${PAD},${H2-24})">
+      <line x1="0" y1="0" x2="${bar.toFixed(1)}" y2="0" stroke="#7f97a6" stroke-width="1.4"/>
+      <line x1="0" y1="-4" x2="0" y2="4" stroke="#7f97a6" stroke-width="1.4"/>
+      <line x1="${bar.toFixed(1)}" y1="-4" x2="${bar.toFixed(1)}" y2="4" stroke="#7f97a6" stroke-width="1.4"/>
+      <text x="${(bar/2).toFixed(1)}" y="-8" font-size="10" fill="#7f97a6" text-anchor="middle">1 km</text>
+    </g>`;
+  svg.innerHTML = out;
+  svg.querySelectorAll('.spot-g').forEach(g=>
+    g.addEventListener('click', ()=>{ selected = g.dataset.id; renderAll(); }));
+}
+
+/* ══ 큐시트 ══ */
+function drawTrack(){
+  const track = document.getElementById('track'), dur = DATA.show.duration_min;
+  track.querySelectorAll('.band').forEach(b=>b.remove());
+  DATA.show.effects.forEach(e=>{
+    const d = document.createElement('div');
+    d.className = 'band' + ((minute>=e.start_min && minute<e.end_min) ? ' on' : '');
+    d.style.left = (100*e.start_min/dur)+'%';
+    d.style.width = (100*(e.end_min-e.start_min)/dur)+'%';
+    d.textContent = e.name;
+    d.title = `${e.name} · ${e.start_min}~${e.end_min}분 · 고도 ${e.alt_min_m}~${e.alt_max_m}m`;
+    d.addEventListener('click', ()=>{ minute=e.start_min; document.getElementById('time').value=minute; renderAll(); });
+    track.appendChild(d);
+  });
+  const ticks = document.getElementById('ticks');
+  ticks.innerHTML = '';
+  for (let m=0;m<=dur;m+=10){
+    const s = document.createElement('span');
+    s.style.left = (100*m/dur)+'%'; s.textContent = m+'분';
+    ticks.appendChild(s);
+  }
+}
+function km(m){ return m < 1000 ? `${Math.round(m)}m` : `${(m/1000).toFixed(2)}km`; }
+function hhmm(startTime, addMin){
+  const [h,m] = startTime.split(':').map(Number), t = h*60+m+addMin;
+  return String(Math.floor(t/60)%24).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+}
+
+/* ══ 표 ══ */
+function drawRows(){
+  const showFamous = document.getElementById('tgFamous').checked;
+  const rows = DATA.spots.filter(s=>showFamous || !s.famous)
+    .map(s=>({s, v:visibilityAt(s, minute)}))
+    .sort((a,b)=> b.v.frac - a.v.frac || b.s.total - a.s.total);
+  document.getElementById('rows').innerHTML = rows.map(({s,v})=>{
+    const thin = Object.values(s.sights).some(x=>x.data_thin);
+    const main = s.sights[s.profile.site_id] || Object.values(s.sights)[0];
+    return `<tr class="row ${s.id===selected?'sel':''}" data-id="${s.id}">
+      <td class="name">${s.name}${s.famous?'<span class="chip">알려진 곳</span>':''}
+        ${thin?'<span class="chip warn">데이터 밖</span>':''}</td>
+      <td><span class="pct mono">${(v.frac*100).toFixed(0)}%</span>
+        <span class="track-mini"><i style="width:${(v.frac*100).toFixed(0)}%;background:${rampColor(v.frac)}"></i></span></td>
+      <td class="mono">${(s.distance_m/1000).toFixed(1)}km</td>
+      <td class="mono">${main ? main.min_visible_alt_m.toFixed(0)+'m' : '—'}</td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('tr.row').forEach(tr=>
+    tr.addEventListener('click', ()=>{ selected = tr.dataset.id; renderAll(); }));
+}
+
+/* ══ 시선 단면도 ══ */
+function drawDetail(){
+  const sp = spotById[selected], el = document.getElementById('detail');
+  if (!sp){ el.innerHTML = ''; return; }
+  const pr = sp.profile, st = sp.sights[pr.site_id];
+  const act = mainEffect(minute);
+  const w=460, h=190, pad={l:34,r:10,t:12,b:22};
+  const total = pr.points.length ? pr.points[pr.points.length-1][0] : 1;
+  const topZ = Math.max(st.min_visible_alt_m+pr.base_elev_m, ...pr.points.map(p=>p[1]),
+                        act ? act.alt_max_m+pr.base_elev_m : 0)*1.15 + 20;
+  const X = s => pad.l + (w-pad.l-pad.r)*(s/total);
+  const Y = z => h - pad.b - (h-pad.t-pad.b)*(z/topZ);
+
+  let g = '';
+  for (let i=0;i<=4;i++){
+    const z = topZ*i/4;
+    g += `<line x1="${pad.l}" y1="${Y(z).toFixed(1)}" x2="${w-pad.r}" y2="${Y(z).toFixed(1)}" stroke="#233b49" stroke-width=".7"/>
+          <text x="4" y="${(Y(z)+3.5).toFixed(1)}" font-size="9" fill="#6d8595" font-family="IBM Plex Mono, monospace">${z.toFixed(0)}</text>`;
+  }
+  const area = pr.points.map(p=>`${X(p[0]).toFixed(1)},${Y(Math.max(p[1],0)).toFixed(1)}`).join(' ');
+  g += `<polyline points="${X(0).toFixed(1)},${Y(0).toFixed(1)} ${area} ${X(total).toFixed(1)},${Y(0).toFixed(1)}"
+          fill="#22384a" stroke="#3f5b6d" stroke-width=".8"/>`;
+  const zEnd = pr.base_elev_m + st.min_visible_alt_m;
+  g += `<line x1="${X(0).toFixed(1)}" y1="${Y(pr.eye_elev_m).toFixed(1)}" x2="${X(total).toFixed(1)}" y2="${Y(zEnd).toFixed(1)}"
+          stroke="var(--e3)" stroke-width="1.4" stroke-dasharray="5 3"/>`;
+  if (act){
+    const y1=Y(pr.base_elev_m+act.alt_max_m), y2=Y(pr.base_elev_m+act.alt_min_m);
+    g += `<rect x="${(X(total)-13).toFixed(1)}" y="${y1.toFixed(1)}" width="13"
+            height="${Math.max(2,(y2-y1)).toFixed(1)}" fill="var(--signal)" opacity=".45"/>`;
+    const mid = pr.base_elev_m + (act.alt_min_m+act.alt_max_m)/2;
+    g += `<line x1="${X(0).toFixed(1)}" y1="${Y(pr.eye_elev_m).toFixed(1)}" x2="${X(total).toFixed(1)}" y2="${Y(mid).toFixed(1)}"
+            stroke="${mid >= zEnd ? '#7ed692' : 'var(--signal)'}" stroke-width="1.6" opacity=".9"/>`;
+  }
+  g += `<circle cx="${X(0).toFixed(1)}" cy="${Y(pr.eye_elev_m).toFixed(1)}" r="3" fill="var(--paper)"/>`;
+
+  const blocker = st.limiting
+    ? `${st.limiting.name} (${km(st.limiting.distance_m)} 앞, 상단 ${st.limiting.top_elev_m.toFixed(0)}m)`
+    : '없음 — 시선이 트여 있음';
+  el.innerHTML = `
+    <div class="eyebrow">선택한 자리 — 지도나 표에서 다른 자리를 누르면 바뀝니다</div>
+    <h3>${sp.name}</h3>
+    <div><dl class="kv">
+      <dt>최소 가시 고도</dt><dd class="mono">${st.min_visible_alt_m.toFixed(0)} m 이상에서 터져야 보임</dd>
+      <dt>시선을 막는 것</dt><dd>${blocker}</dd>
+      <dt>거리 · 방위</dt><dd class="mono">${(sp.distance_m/1000).toFixed(2)} km · ${sp.compass} (${sp.bearing_deg.toFixed(0)}°)</dd>
+      <dt>정점 올려각</dt><dd class="mono">${sp.apex_angle_deg.toFixed(1)}°</dd>
+      <dt>종합 점수</dt><dd class="mono">${(sp.total*100).toFixed(0)} / 100</dd>
+      ${sp.note?`<dt>메모</dt><dd>${sp.note}</dd>`:''}
+    </dl></div>
+    <div><svg class="section-svg" viewBox="0 0 ${w} ${h}" role="img"
+      aria-label="${sp.name}에서 ${pr.site_name}까지의 시선 단면">${g}</svg>
+    <div class="eyebrow section-note">${pr.site_name}까지의 시선 단면 · 세로축 표고(m) ·
+      점선 = 이 자리에서 겨우 보이기 시작하는 높이, 실선 = 지금 터지는 높이</div></div>`;
+}
+
+/* ══ 정적 요소 ══ */
+function drawStatic(){
+  document.getElementById('subtitle').textContent =
+    `${DATA.show.name} — 발사 지점의 고도와 앞을 막은 건물·능선만으로, 각 자리에서 "몇 m 위에서 터져야 보이는지"를 계산했다.`;
+  document.getElementById('databadge').textContent = DATA.data_note;
+  document.getElementById('legend').innerHTML =
+    [[0,'안 보임'],[0.25,'일부만'],[0.5,'절반'],[0.8,'대부분'],[1,'전부']]
+      .map(([f,l])=>`<span><i style="background:${rampColor(f)}"></i>${l}</span>`).join('')
+    + `<span><i style="background:var(--signal)"></i>발사 지점</span>`
+    + `<span style="color:#7ed692">— 지금 보이는 시선</span>`
+    + `<span style="color:var(--e3)">┄ 겨우 보이기 시작하는 높이</span>`;
+  document.getElementById('footer').innerHTML =
+    `계산 근거: 관람자의 눈높이에서 발사 지점 상공으로 시선을 그은 뒤, 그 위에 걸친 건물·능선이 요구하는
+     최소 도착 표고를 모두 구해 그 최댓값을 취한다. 지구 곡률과 대기 굴절(k=0.13)을 반영한다.
+     · 3D 장면의 높이는 강조 배율만큼 부풀렸지만, 시선·불꽃·장애물을 같은 비율로 늘리므로 가려지고 말고는 그대로다.
+     · 데이터를 바꾸면 결과가 바뀐다 — 좌표·높이·프로그램은 모두 JSON 파일 한 벌이다.`;
+  document.getElementById('time').max = DATA.show.duration_min;
+  document.getElementById('exag').textContent = `높이 ×${exag} 강조`;
+}
+
+function setView(next){
+  view = next;
+  document.getElementById('btn3d').setAttribute('aria-pressed', String(view==='3d'));
+  document.getElementById('btnFp').setAttribute('aria-pressed', String(view==='fp'));
+  document.getElementById('btn2d').setAttribute('aria-pressed', String(view==='2d'));
+  canvas.classList.toggle('hidden', view==='2d');
+  document.getElementById('map').classList.toggle('hidden', view!=='2d');
+  document.getElementById('exag').classList.toggle('hidden', view==='2d');
+  const hints = {
+    '3d': '드래그로 회전 · 휠로 확대 · 방향키로도 움직입니다',
+    'fp': `${(spotById[selected]||{}).name || ''}의 눈높이에서 발사 지점을 바라봅니다`,
+    '2d': '위에서 내려다본 배치. 방위와 거리를 확인할 때',
+  };
+  document.getElementById('viewhint').textContent = hints[view];
+  renderAll();
+}
+
+function renderAll(){
+  const acts = activeEffects(minute);
+  document.getElementById('cuenow').innerHTML = acts.length
+    ? `<b>${acts.map(e=>e.name).join(' + ')}</b> · 고도 ${Math.min(...acts.map(e=>e.alt_min_m))}~${Math.max(...acts.map(e=>e.alt_max_m))}m`
+    : '<b>대기</b> · 발사 없음';
+  document.getElementById('cueclock').textContent = `${hhmm(DATA.show.start_time, minute)} · 시작 후 ${minute}분`;
+  document.getElementById('exag').textContent = `높이 ×${exag} 강조`;
+  if (view === 'fp')
+    document.getElementById('viewhint').textContent =
+      `${(spotById[selected]||{}).name || ''}의 눈높이에서 발사 지점을 바라봅니다`;
+  drawTrack();
+  if (view === '2d') drawMap2D(); else drawScene();
+  drawRows(); drawDetail();
+}
+
+document.getElementById('time').addEventListener('input', e=>{ minute = Number(e.target.value); renderAll(); });
+['tgFamous','tgGrid','tgObs'].forEach(id=>
+  document.getElementById(id).addEventListener('change', renderAll));
+document.getElementById('btn3d').addEventListener('click', ()=>setView('3d'));
+document.getElementById('btnFp').addEventListener('click', ()=>setView('fp'));
+document.getElementById('btn2d').addEventListener('click', ()=>setView('2d'));
+window.addEventListener('resize', ()=>{ if (view!=='2d') drawScene(); });
+
+drawStatic();
+setView('3d');
+</script>
