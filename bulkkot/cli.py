@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import datasets, report, scan as scan_mod, scoring
+from . import datasets, ingest as ingest_mod, report, scan as scan_mod, scoring
 from .model import Viewpoint
 from .terrain import AsciiGridTerrain, FlatTerrain, RidgeTerrain
 from .visibility import sight_profile
@@ -236,6 +236,83 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_bbox(args) -> int:
+    """건물·지형 데이터를 잘라 받을 범위를 형식별로 찍는다."""
+    lat_lo, lon_lo, lat_hi, lon_hi = NEEDED_BBOX
+    print()
+    print("  내장 후보지의 시선이 지나는 범위 + 여유 500m")
+    print()
+    print(f"  위도            {lat_lo} ~ {lat_hi}")
+    print(f"  경도            {lon_lo} ~ {lon_hi}")
+    print()
+    print(f"  ogr2ogr -clipsrc  {lon_lo} {lat_lo} {lon_hi} {lat_hi}")
+    print(f"  gdalwarp -te      {lon_lo} {lat_lo} {lon_hi} {lat_hi}")
+    print(f"  gdal_translate -projwin  {lon_lo} {lat_hi} {lon_hi} {lat_lo}")
+    print(f"  bulkkot scan --bbox  {lat_lo} {lon_lo} {lat_hi} {lon_hi}")
+    print()
+    return 0
+
+
+def cmd_ingest(args) -> int:
+    """받은 건물 데이터를 넣고, 높이가 제대로 들어왔는지 진단한다."""
+    bbox = tuple(args.bbox) if args.bbox else NEEDED_BBOX
+    obstacles, rep = ingest_mod.ingest(
+        args.paths,
+        bbox=None if args.no_clip else bbox,
+        default_height_m=args.default_height,
+        ground_elev_m=args.ground_elev,
+        source=args.source,
+    )
+
+    print(f"\n■ 읽기")
+    print(f"  피처            {rep.read:,}")
+    print(f"  남김            {rep.kept:,}")
+    if rep.outside_bbox:
+        print(f"  범위 밖 제외      {rep.outside_bbox:,}")
+    if rep.no_geometry:
+        print(f"  폴리곤 아님 제외    {rep.no_geometry:,}")
+
+    print(f"\n■ 높이는 어디서 왔나")
+    total = max(rep.kept, 1)
+    print(f"  높이 필드({rep.height_key or '없음'})   {rep.from_height:>8,}  {rep.from_height/total*100:5.1f}%")
+    print(f"  층수 × {ingest_mod.METERS_PER_LEVEL}m ({rep.level_key or '없음'})  {rep.from_levels:>8,}  {rep.from_levels/total*100:5.1f}%")
+    print(f"  기본값 {args.default_height:.0f}m        {rep.from_default:>8,}  {rep.from_default/total*100:5.1f}%   ← 이 수치가 낮아야 한다")
+
+    if rep.heights:
+        print(f"\n■ 높이 분포")
+        print(f"  중앙값 {rep.percentile(0.5):.0f}m · 상위 10% {rep.percentile(0.9):.0f}m · 최대 {max(rep.heights):.0f}m")
+        print(f"\n■ 가장 높은 건물 (아는 건물이 아는 높이로 나오는지 보세요)")
+        for name, top in rep.tallest:
+            print(f"  {top:6.0f}m  {name}")
+
+    if args.show_fields:
+        print(f"\n■ 속성 이름 (많이 나온 순)")
+        for key, count in sorted(rep.keys_seen.items(), key=lambda kv: -kv[1])[:25]:
+            print(f"  {count:>8,}  {key}")
+
+    warnings = rep.warnings(bbox)
+    if warnings:
+        print()
+        for w in warnings:
+            print(f"  ⚠ {w}")
+
+    if args.dry_run:
+        print("\n  (--dry-run 이라 파일을 쓰지 않았습니다)")
+        return 0
+
+    path = ingest_mod.write_dataset(
+        obstacles, args.out, note=args.source, keep_ridges=not args.no_ridges
+    )
+    size = path.stat().st_size / 1024 / 1024
+    print(f"\n  {path} ({size:.1f} MB) · 건물 {len(obstacles):,}동")
+    if not args.no_ridges:
+        print("  능선은 씨드의 임시 값을 이어받았습니다. --dem 을 쓰기 시작하면 --no-ridges 로 다시 넣으세요.")
+    print(f"\n  다음:  python -m bulkkot rank --data {args.out}")
+    print(f"        python -m bulkkot report --data {args.out} --scan -o 관측도.html")
+    print()
+    return 0
+
+
 def cmd_dem(args) -> int:
     """받은 수치표고모델이 쓸 만한지 확인한다."""
     terrain = AsciiGridTerrain.from_file(args.path)
@@ -292,6 +369,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--data", help="데이터 디렉터리 (기본: 내장 씨드 데이터)")
     p.add_argument("--show", default="show_2026.json", help="프로그램 파일 이름")
+
+    # 같은 옵션을 하위 명령 뒤에도 쓸 수 있게 한다.
+    # `rank --data mydata` 가 `--data mydata rank` 만큼 자연스럽기 때문이다.
+    # SUPPRESS 라서 하위에서 주지 않으면 전역 값이 그대로 남는다.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--data", default=argparse.SUPPRESS,
+                        help="데이터 디렉터리 (기본: 내장 씨드 데이터)")
+    common.add_argument("--show", default=argparse.SUPPRESS, help="프로그램 파일 이름")
+
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def add_terrain_opts(sp):
@@ -300,19 +386,19 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--base-elev", type=float, default=12.0, help="DEM이 없을 때의 기본 지반고(m)")
         sp.add_argument("--eye", type=float, default=1.6, help="눈높이(m). 옥상·전망대면 올려 잡는다")
 
-    r = sub.add_parser("rank", help="후보지 순위")
+    r = sub.add_parser("rank", parents=[common], help="후보지 순위")
     r.add_argument("--hidden", action="store_true", help="이미 유명한 명당은 빼고, 한산함에 가중치")
     r.add_argument("--top", type=int, default=20)
     r.add_argument("--json", action="store_true")
     add_terrain_opts(r)
     r.set_defaults(func=cmd_rank)
 
-    e = sub.add_parser("explain", help="한 자리를 뜯어보기")
+    e = sub.add_parser("explain", parents=[common], help="한 자리를 뜯어보기")
     e.add_argument("spot", help="후보지 id 또는 이름 일부")
     add_terrain_opts(e)
     e.set_defaults(func=cmd_explain)
 
-    c = sub.add_parser("check", help="임의 좌표 확인")
+    c = sub.add_parser("check", parents=[common], help="임의 좌표 확인")
     c.add_argument("lat", type=float)
     c.add_argument("lon", type=float)
     c.add_argument("--name")
@@ -322,7 +408,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_terrain_opts(c)
     c.set_defaults(func=cmd_check)
 
-    s = sub.add_parser("scan", help="격자 탐색으로 이름 없는 자리 찾기")
+    s = sub.add_parser("scan", parents=[common], help="격자 탐색으로 이름 없는 자리 찾기")
     s.add_argument("--step", type=float, default=250.0, help="격자 간격(m)")
     s.add_argument("--bbox", type=float, nargs=4, metavar=("MIN_LAT", "MIN_LON", "MAX_LAT", "MAX_LON"))
     s.add_argument("--top", type=int, default=25)
@@ -333,19 +419,39 @@ def build_parser() -> argparse.ArgumentParser:
     add_terrain_opts(s)
     s.set_defaults(func=cmd_scan)
 
-    rep = sub.add_parser("report", help="자립형 HTML 관측도 생성")
+    rep = sub.add_parser("report", parents=[common], help="자립형 HTML 관측도 생성")
     rep.add_argument("-o", "--out", default="hangang-fireworks.html")
     rep.add_argument("--scan", action="store_true", help="격자 탐색 결과도 겹쳐 그린다")
     rep.add_argument("--step", type=float, default=250.0)
     add_terrain_opts(rep)
     rep.set_defaults(func=cmd_report)
 
+    ing = sub.add_parser("ingest", parents=[common], help="받은 건물 데이터를 넣고 진단")
+    ing.add_argument("paths", nargs="+", help="GeoJSON 또는 줄 단위 GeoJSON(.geojsonl) 파일")
+    ing.add_argument("-o", "--out", default="mydata", help="데이터 디렉터리 (기본: mydata)")
+    ing.add_argument("--bbox", type=float, nargs=4,
+                     metavar=("MIN_LAT", "MIN_LON", "MAX_LAT", "MAX_LON"),
+                     help="이 범위 밖 건물은 버린다 (기본: 시선이 지나는 범위)")
+    ing.add_argument("--no-clip", action="store_true", help="범위로 자르지 않는다")
+    ing.add_argument("--default-height", type=float, default=12.0,
+                     help="높이도 층수도 없을 때 쓸 값(m)")
+    ing.add_argument("--ground-elev", type=float, default=0.0,
+                     help="지반고 속성이 없을 때 쓸 값(m)")
+    ing.add_argument("--source", default="국토교통부 GIS건물통합정보", help="출처 표기")
+    ing.add_argument("--no-ridges", action="store_true",
+                     help="씨드의 임시 능선을 넣지 않는다 (--dem 을 쓸 때)")
+    ing.add_argument("--show-fields", action="store_true", help="속성 이름 목록도 출력")
+    ing.add_argument("--dry-run", action="store_true", help="진단만 하고 쓰지 않는다")
+    ing.set_defaults(func=cmd_ingest)
+
+    sub.add_parser("bbox", help="데이터를 잘라 받을 범위").set_defaults(func=cmd_bbox)
+
     d = sub.add_parser("dem", help="받은 수치표고모델 점검")
     d.add_argument("path", help="ESRI ASCII 격자(.asc) 파일")
     d.set_defaults(func=cmd_dem)
 
-    sub.add_parser("spots", help="후보지 목록").set_defaults(func=cmd_spots)
-    sub.add_parser("sites", help="발사 지점과 프로그램").set_defaults(func=cmd_sites)
+    sub.add_parser("spots", parents=[common], help="후보지 목록").set_defaults(func=cmd_spots)
+    sub.add_parser("sites", parents=[common], help="발사 지점과 프로그램").set_defaults(func=cmd_sites)
     return p
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Iterator, Sequence
 
 from ..model import Obstacle
 
@@ -26,6 +26,25 @@ def load_geojson(path: str | Path) -> dict[str, Any]:
         return json.load(fh)
 
 
+# 줄 단위 GeoJSON(GeoJSONSeq). 서울 전체 건물처럼 큰 파일을 통째로 메모리에
+# 올리지 않으려면 이쪽이 필요하다. ogr2ogr -f GeoJSONSeq 로 만들 수 있다.
+SEQ_SUFFIXES = {".geojsonl", ".jsonl", ".geojsons", ".ndjson", ".geojsonseq"}
+
+
+def iter_features(path: str | Path) -> Iterator[dict[str, Any]]:
+    """GeoJSON 또는 줄 단위 GeoJSON에서 피처를 하나씩 흘려보낸다."""
+    path = Path(path)
+    if path.suffix.lower() in SEQ_SUFFIXES:
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip().lstrip("\x1e")  # RFC 8142 레코드 구분자
+                if not line or line in {"[", "]"}:
+                    continue
+                yield json.loads(line.rstrip(","))
+        return
+    yield from load_geojson(path).get("features", [])
+
+
 def from_geojson(
     geojson: dict[str, Any],
     ground_elev_m: float | Sequence[float] | None = None,
@@ -37,8 +56,20 @@ def from_geojson(
     ground_elev_m 에 숫자를 주면 모든 건물의 지반고로 쓰고, 생략하면 0으로 둔다.
     지반고가 중요한 지역(언덕 위 아파트)이라면 DEM에서 뽑아 속성에 미리 넣어라.
     """
+    return from_features(
+        geojson.get("features", []), ground_elev_m, default_height_m, source
+    )
+
+
+def from_features(
+    features: Iterable[dict[str, Any]],
+    ground_elev_m: float | Sequence[float] | None = None,
+    default_height_m: float = 12.0,
+    source: str = "geojson",
+) -> list[Obstacle]:
+    """피처 시퀀스를 Obstacle 목록으로."""
     out: list[Obstacle] = []
-    for i, feat in enumerate(geojson.get("features", [])):
+    for i, feat in enumerate(features):
         props = feat.get("properties") or {}
         geom = feat.get("geometry") or {}
         rings = _rings(geom)

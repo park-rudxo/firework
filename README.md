@@ -50,6 +50,8 @@ python -m bulkkot explain nodeulseom   # 한 자리를 뜯어보기 (시선 단�
 python -m bulkkot check 37.5117 126.9530 --elev 55   # 임의 좌표
 python -m bulkkot scan --step 200 --exclude-known    # 격자로 이름 없는 자리 찾기
 python -m bulkkot report --scan -o 관측도.html        # 자립형 HTML 관측도
+python -m bulkkot bbox                 # 데이터를 잘라 받을 범위
+python -m bulkkot ingest seoul.geojsonl -o mydata   # 받은 건물 데이터 넣고 진단
 python -m bulkkot dem seoul.asc        # 받은 수치표고모델 점검
 ```
 
@@ -112,17 +114,18 @@ python -m bulkkot dem seoul.asc        # 받은 수치표고모델 점검
 넣는지 순서대로 적어 두었다.** 국토교통부 건물통합정보(또는 VWorld / Overpass)와
 수치표고모델로 갈아끼우면 된다. 어댑터는 이미 들어 있다.
 
-```python
-from bulkkot.providers import fetch_overpass
-from bulkkot.providers.overpass import to_obstacles_json
-
-obstacles = fetch_overpass((37.49, 126.88, 37.58, 127.05))
-json.dump(to_obstacles_json(obstacles), open("mydata/obstacles.json", "w"), ensure_ascii=False)
-```
-
 ```bash
+# 받은 shapefile → WGS84 + 필요한 범위만 + 줄 단위 GeoJSON
+ogr2ogr -f GeoJSONSeq seoul.geojsonl -t_srs EPSG:4326 \
+  -clipsrc 126.8773 37.4923 127.0382 37.5745 F_FAC_BUILDING_11560.shp
+
+python -m bulkkot ingest seoul.geojsonl -o mydata
 python -m bulkkot rank --data mydata
 ```
+
+`ingest` 는 변환만 하는 게 아니라 **높이가 어디서 왔는지**를 보여준다 —
+높이 필드에서 몇 %, 층수 환산이 몇 %, 기본값으로 때운 게 몇 %인지. 마지막
+숫자가 크면 그 데이터로는 아무것도 판단할 수 없다.
 
 ## 아직 계산하지 않는 것
 
@@ -150,10 +153,11 @@ bulkkot/
   terrain.py      평지 / 능선 근사 / ESRI ASCII DEM
   report.py       자립형 HTML 관측도 (3D 장면 + 평면도)
   data/template.html  3D 렌더러와 UI. 의존성 없는 캔버스 그리기
+  ingest.py       받은 데이터를 넣고, 높이가 제대로 들어왔는지 진단
   providers/      Overpass · VWorld · GeoJSON 어댑터
   data/           씨드 데이터 (교체 대상)
 ```
 
 ```bash
-python -m pytest      # 28 tests
+python -m pytest      # 46 tests
 ```

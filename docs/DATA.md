@@ -26,22 +26,50 @@
 - 확인할 속성 이름: `HEIGHT`(높이 m), `GRND_FLR`(지상층수), `BLD_NM`(건물명)
 - 좌표계 주의: 보통 **EPSG:5186** (중부원점)이다. WGS84로 변환해서 넘겨야 한다.
 
-변환:
+**이미 받으셨다면 이 세 줄이 전부입니다.**
+
 ```bash
-# shapefile → WGS84 GeoJSON
-ogr2ogr -f GeoJSON -t_srs EPSG:4326 seoul_buildings.geojson F_FAC_BUILDING_11.shp
+# 1) 압축을 풀고 무엇이 들어있는지 본다 (필드 이름과 좌표계 확인)
+ogrinfo -so -al F_FAC_BUILDING_11560.shp | head -40
+
+# 2) WGS84로 변환 + 필요한 범위만 잘라 + 줄 단위 GeoJSON으로
+#    (줄 단위여야 서울 전체도 메모리를 안 먹고 흘려 읽는다)
+ogr2ogr -f GeoJSONSeq seoul.geojsonl -t_srs EPSG:4326 \
+  -clipsrc 126.8773 37.4923 127.0382 37.5745 \
+  --config SHAPE_ENCODING CP949 \
+  F_FAC_BUILDING_11560.shp
+
+# 3) 넣고 진단한다
+python -m bulkkot ingest seoul.geojsonl -o mydata
 ```
 
-넣기:
-```python
-from bulkkot.providers import load_geojson, from_geojson
-from bulkkot.providers.overpass import to_obstacles_json
-import json
+시군구별로 파일이 나뉘어 있으면 `ingest` 에 여러 개를 한꺼번에 넘기면 된다.
 
-obstacles = from_geojson(load_geojson("seoul_buildings.geojson"))
-json.dump(to_obstacles_json(obstacles, "국가공간정보포털 GIS건물통합정보"),
-          open("mydata/obstacles.json", "w"), ensure_ascii=False)
+```bash
+python -m bulkkot ingest bld_*.geojsonl -o mydata
 ```
+
+`-clipsrc` 좌표는 `python -m bulkkot bbox` 로 언제든 다시 볼 수 있다.
+`--config SHAPE_ENCODING CP949` 는 건물명이 깨질 때만 필요하다 (.cpg 파일이
+같이 왔으면 없어도 된다).
+
+`ingest` 는 변환만 하지 않고 **높이가 제대로 들어왔는지**를 보여준다.
+
+```
+■ 높이는 어디서 왔나
+  높이 필드(HEIGHT)      18,524   61.8%
+  층수 × 3.3m (GRND_FLR)  8,483   28.3%
+  기본값 12m              2,982    9.9%   ← 이 수치가 낮아야 한다
+
+■ 가장 높은 건물 (아는 건물이 아는 높이로 나오는지 보세요)
+     318m  파크원 타워1
+     279m  서울 IFC Three
+     249m  63스퀘어
+```
+
+여기서 **파크원·IFC·63스퀘어가 제 높이로 나오면 성공**이다. 최대가 150m도
+안 되면 높이 속성이 비어 있다는 뜻이고, 그 상태로는 결과를 믿을 수 없다.
+`--show-fields` 를 붙이면 실제 속성 이름 목록을 볼 수 있다 (출처마다 다르다).
 
 ### ② VWorld 데이터 API — 키만 받으면 바로 코드로
 
@@ -215,12 +243,25 @@ python -m bulkkot dem seoul-fake.asc
 ## 넣고 나서
 
 ```bash
-mkdir mydata
-# obstacles.json 은 새로 만든 것으로, 나머지 4개는 씨드에서 복사해 고쳐 쓴다
-cp bulkkot/data/{launch_sites.json,spots.json,show_2026.json,hangang.json,landmarks.json} mydata/
-
-python -m bulkkot rank --data mydata --dem seoul.asc
-python -m bulkkot report --data mydata --dem seoul.asc --scan -o 관측도.html
+python -m bulkkot rank    --data mydata
+python -m bulkkot explain yongyangbong --data mydata
+python -m bulkkot report  --data mydata --scan -o 관측도.html
 ```
 
 `데이터 밖` 경고가 사라지고 `massing_` 근사 블록이 없어지면 제대로 들어간 것이다.
+DEM까지 넣었다면 `--dem seoul.asc` 를 함께 붙이고, 한 번은
+`python -m bulkkot ingest ... --no-ridges` 로 다시 만들어 임시 능선을 빼라.
+
+### 얼마나 걸리나
+
+건물 15만 동 기준 (의존성 없는 순수 파이썬):
+
+| 명령 | 시간 |
+| --- | --- |
+| `ingest` | 10초 |
+| `rank` | 10초 (대부분 파일 읽기) |
+| `scan --step 400` | 17초 |
+| `scan --step 150` | 2분 남짓 |
+
+격자 탐색은 간격을 좁힐수록 제곱으로 늘어난다. 처음에는 400m로 훑어 대략
+어디가 좋은지 보고, 관심 구역만 `--bbox` 로 좁혀 150m로 다시 돌리는 편이 낫다.

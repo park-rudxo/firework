@@ -52,6 +52,7 @@ class ObstacleField:
         self.cell_m = cell_m
 
         self._local: list[list[tuple[float, float]]] = []
+        self._bounds: list[tuple[float, float, float]] = []  # (cx, cy, radius)
         self._index: dict[tuple[int, int], list[int]] = defaultdict(list)
         self._extent = (
             float("inf"), float("inf"), float("-inf"), float("-inf")
@@ -62,6 +63,11 @@ class ObstacleField:
             self._local.append(pts)
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
+            mid_x = (min(xs) + max(xs)) / 2.0
+            mid_y = (min(ys) + max(ys)) / 2.0
+            self._bounds.append(
+                (mid_x, mid_y, math.hypot(max(xs) - mid_x, max(ys) - mid_y))
+            )
             self._extent = (
                 min(self._extent[0], min(xs)),
                 min(self._extent[1], min(ys)),
@@ -104,13 +110,29 @@ class ObstacleField:
         if total <= 0.0:
             return found, z_eye, checked
 
-        for idx in self.candidates(p_view, p_site):
+        # 높은 것부터 본다. 앞에서 세운 기준이 높을수록 뒤의 후보가 빨리 걸러진다.
+        candidates = sorted(
+            self.candidates(p_view, p_site),
+            key=lambda i: self.obstacles[i].top_elev_m,
+            reverse=True,
+        )
+        for idx in candidates:
             obs = self.obstacles[idx]
-            checked += 1
 
             if obs.top_elev_m <= z_eye:
-                # 눈높이보다 낮은 것은 하늘을 가릴 수 없다.
-                continue
+                # 눈높이보다 낮은 것은 하늘을 가릴 수 없다. 정렬해 두었으니 이후는 볼 것도 없다.
+                break
+
+            # 이 장애물이 최선을 다해도 지금 기준을 못 넘으면 교차 검사가 낭비다.
+            # 시선 위 점은 중심에서 반경 안에 있으므로 s >= |눈→중심| - 반경.
+            mid_x, mid_y, radius = self._bounds[idx]
+            s_min = math.hypot(mid_x - p_view[0], mid_y - p_view[1]) - radius
+            if s_min > 0.0 and required > float("-inf"):
+                best = geo.required_z_end(s_min, total, z_eye, obs.top_elev_m)
+                if best <= required:
+                    continue
+
+            checked += 1
             poly = self._local[idx]
             hits = geo.segment_intersections(p_view, p_site, poly)
             lower = _UNDERFOOT_M if obs.is_ridge else 0.0
@@ -351,21 +373,40 @@ def _cells_line(
 def _cells_along(
     p0: tuple[float, float], p1: tuple[float, float], size: float
 ) -> Iterable[tuple[int, int]]:
-    """선분이 지나는 격자 칸을 훑는다(경계 오차를 감안해 3x3로 여유를 둔다)."""
-    length = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-    steps = max(1, int(length / (size * 0.5)) + 1)
-    seen: set[tuple[int, int]] = set()
-    for i in range(steps + 1):
-        t = i / steps
-        x = p0[0] + (p1[0] - p0[0]) * t
-        y = p0[1] + (p1[1] - p0[1]) * t
-        cx, cy = _cell(x, size), _cell(y, size)
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                cell = (cx + dx, cy + dy)
-                if cell not in seen:
-                    seen.add(cell)
-                    yield cell
+    """선분이 지나는 격자 칸을 정확히 훑는다 (Amanatides–Woo).
+
+    장애물은 자기 bbox 가 걸친 모든 칸에 색인되어 있으므로, 선분이 실제로
+    지나는 칸만 보면 놓치는 것이 없다. 표본을 찍고 주변 3x3을 훑던 이전
+    방식은 후보를 아홉 배로 부풀렸다.
+    """
+    x0, y0 = p0
+    x1, y1 = p1
+    cx, cy = _cell(x0, size), _cell(y0, size)
+    cx1, cy1 = _cell(x1, size), _cell(y1, size)
+    yield (cx, cy)
+    if (cx, cy) == (cx1, cy1):
+        return
+
+    dx, dy = x1 - x0, y1 - y0
+    step_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
+    step_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+    inf = float("inf")
+    t_max_x = ((cx + (1 if step_x > 0 else 0)) * size - x0) / dx if dx else inf
+    t_max_y = ((cy + (1 if step_y > 0 else 0)) * size - y0) / dy if dy else inf
+    t_delta_x = abs(size / dx) if dx else inf
+    t_delta_y = abs(size / dy) if dy else inf
+
+    # 부동소수 오차로 목적지 칸을 지나치는 경우를 대비한 상한
+    guard = abs(cx1 - cx) + abs(cy1 - cy) + 4
+    while guard > 0 and (cx, cy) != (cx1, cy1):
+        guard -= 1
+        if t_max_x < t_max_y:
+            cx += step_x
+            t_max_x += t_delta_x
+        else:
+            cy += step_y
+            t_max_y += t_delta_y
+        yield (cx, cy)
 
 
 def _centroid(obstacles: Sequence[Obstacle]) -> tuple[float, float]:
