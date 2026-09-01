@@ -14,6 +14,10 @@ from .visibility import sight_profile
 
 SEOUL_BBOX = (37.4900, 126.8800, 37.5750, 127.0400)
 
+# 내장 후보지의 시선이 실제로 지나는 범위 + 여유 500m.
+# 건물·지형 데이터를 잘라 받을 때 이 범위를 기준으로 하면 된다.
+NEEDED_BBOX = (37.4923, 126.8773, 37.5745, 127.0382)
+
 
 def _load(args):
     data_dir = Path(args.data) if args.data else datasets.DATA_DIR
@@ -33,11 +37,20 @@ def _data_note(args) -> str:
 
 
 def _terrain(args, obstacles):
+    """격자점의 지반고를 정하는 모델. 실측이 아니어도 쓸모가 있다."""
     if args.dem:
         return AsciiGridTerrain.from_file(args.dem, fallback=args.base_elev)
     if args.ridge_terrain:
         return RidgeTerrain([o for o in obstacles if o.is_ridge], base_elev_m=args.base_elev)
     return FlatTerrain(args.base_elev)
+
+
+def _occluder(args, obstacles):
+    """시선을 가로막는 지형. 실측 DEM일 때만 쓴다.
+
+    능선 근사를 여기에 넘기면 obstacles.json 의 능선과 이중으로 계산된다.
+    """
+    return AsciiGridTerrain.from_file(args.dem, fallback=args.base_elev) if args.dem else None
 
 
 def _main_site_id(show) -> str:
@@ -55,10 +68,11 @@ def _bar(value: float, width: int = 12) -> str:
 
 def cmd_rank(args) -> int:
     sites, obstacles, spots, show, field = _load(args)
+    terrain = _occluder(args, obstacles)
     weights = scoring.HIDDEN_WEIGHTS if args.hidden else scoring.DEFAULT_WEIGHTS
     if args.hidden:
         spots = [s for s in spots if not s.famous]
-    results = scoring.rank(spots, sites, show, field, weights)[: args.top]
+    results = scoring.rank(spots, sites, show, field, weights, terrain)[: args.top]
 
     if args.json:
         print(json.dumps([r.to_dict() for r in results], ensure_ascii=False, indent=2))
@@ -88,7 +102,8 @@ def cmd_explain(args) -> int:
         print(f"'{args.spot}' 에 해당하는 자리가 없습니다. `bulkkot spots` 로 목록을 보세요.", file=sys.stderr)
         return 1
     vp = match[0]
-    score = scoring.evaluate(vp, sites, show, field)
+    terrain = _occluder(args, obstacles)
+    score = scoring.evaluate(vp, sites, show, field, terrain=terrain)
 
     print(f"\n■ {vp.name}  ({vp.lat:.5f}, {vp.lon:.5f}, 지반고 {vp.ground_elev_m:.0f}m, 눈높이 {vp.eye_height_m:.1f}m)")
     if vp.note:
@@ -115,7 +130,7 @@ def cmd_explain(args) -> int:
         )
 
     main_site = max(sites, key=lambda s: sum(e.weight for e in show.effects if e.site_id == s.id))
-    profile = sight_profile(vp, main_site, field, samples=64)
+    profile = sight_profile(vp, main_site, field, samples=64, terrain=terrain)
     if profile:
         print(f"\n  {main_site.name} 방향 시선 단면 (세로 = 표고)")
         _ascii_profile(profile, vp, main_site, score.sights[main_site.id].min_visible_alt_m)
@@ -158,7 +173,7 @@ def cmd_check(args) -> int:
         crowd=args.crowd,
         access=args.access,
     )
-    score = scoring.evaluate(vp, sites, show, field)
+    score = scoring.evaluate(vp, sites, show, field, terrain=_occluder(args, obstacles))
     print(f"\n■ {vp.name} (지반고 {elev:.0f}m, 눈높이 {args.eye:.1f}m)")
     print(f"  종합 {score.total*100:.1f}점 · 프로그램의 {score.visible_pct:.0f}% 가 보임")
     for site in sites:
@@ -176,7 +191,10 @@ def cmd_scan(args) -> int:
     sites, obstacles, spots, show, field = _load(args)
     terrain = _terrain(args, obstacles)
     bbox = tuple(args.bbox) if args.bbox else SEOUL_BBOX
-    results = scan_mod.scan(bbox, args.step, sites, show, field, terrain, eye_height_m=args.eye)
+    results = scan_mod.scan(
+        bbox, args.step, sites, show, field, terrain,
+        eye_height_m=args.eye, occluder=_occluder(args, obstacles),
+    )
     if args.exclude_known:
         results = scan_mod.drop_near(results, spots, args.exclude_radius, famous_only=not args.all_known)
     results = scan_mod.thin_out(results, args.min_gap)[: args.top]
@@ -199,17 +217,53 @@ def cmd_scan(args) -> int:
 
 def cmd_report(args) -> int:
     sites, obstacles, spots, show, field = _load(args)
-    scores = scoring.rank(spots, sites, show, field)
+    terrain = _terrain(args, obstacles)
+    occluder = _occluder(args, obstacles)
+    scores = scoring.rank(spots, sites, show, field, terrain=occluder)
     grid: list = []
     if args.scan:
-        terrain = _terrain(args, obstacles)
-        raw = scan_mod.scan(SEOUL_BBOX, args.step, sites, show, field, terrain, eye_height_m=args.eye)
+        raw = scan_mod.scan(
+            SEOUL_BBOX, args.step, sites, show, field, terrain,
+            eye_height_m=args.eye, occluder=occluder,
+        )
         grid = scan_mod.thin_out(raw, 250)[:400]
     payload = report.build_payload(
-        scores, sites, obstacles, show, field, grid=grid, data_note=_data_note(args)
+        scores, sites, obstacles, show, field, grid=grid, data_note=_data_note(args),
+        terrain=occluder,
     )
     out = report.write(args.out, payload)
     print(f"{out} 를 썼습니다 ({out.stat().st_size/1024:.0f} KB). 브라우저에서 바로 열립니다.")
+    return 0
+
+
+def cmd_dem(args) -> int:
+    """받은 수치표고모델이 쓸 만한지 확인한다."""
+    terrain = AsciiGridTerrain.from_file(args.path)
+    info = terrain.summary()
+    print(f"\n■ {args.path}")
+    for key, value in info.items():
+        print(f"  {key:<16s} {value}")
+
+    lat_lo, lat_hi = (float(v) for v in str(info["위도 범위"]).split(" ~ "))
+    lon_lo, lon_hi = (float(v) for v in str(info["경도 범위"]).split(" ~ "))
+    need = NEEDED_BBOX
+    # 가장자리 한두 칸 모자란 것은 문제가 아니다
+    tol = max(float(info["셀 크기(도)"]) * 2.0, 5e-4)
+    covered = (
+        lat_lo <= need[0] + tol and lon_lo <= need[1] + tol
+        and lat_hi >= need[2] - tol and lon_hi >= need[3] - tol
+    )
+    print()
+    print(f"  필요한 범위 {need[0]:.4f},{need[1]:.4f} ~ {need[2]:.4f},{need[3]:.4f}")
+    print("  " + ("범위를 모두 덮습니다." if covered else "⚠ 필요한 범위를 다 덮지 못합니다. 다시 잘라 받으세요."))
+
+    cell_m = float(info["셀 크기(m, 남북)"])
+    cells = int(info["유효 셀"]) + int(info["결측 셀"])
+    if cell_m < 8:
+        print(f"  ⚠ 셀 {cell_m:.1f}m, {cells:,}칸. 이 도구에는 과합니다 — 10~20m로 줄이면 훨씬 빠릅니다.")
+    if float(info["표고 최대"]) < 150:
+        print("  ⚠ 최고 표고가 150m 미만입니다. 남산(≈262m)이 범위에 들었는지 확인하세요.")
+    print()
     return 0
 
 
@@ -250,10 +304,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--hidden", action="store_true", help="이미 유명한 명당은 빼고, 한산함에 가중치")
     r.add_argument("--top", type=int, default=20)
     r.add_argument("--json", action="store_true")
+    add_terrain_opts(r)
     r.set_defaults(func=cmd_rank)
 
     e = sub.add_parser("explain", help="한 자리를 뜯어보기")
     e.add_argument("spot", help="후보지 id 또는 이름 일부")
+    add_terrain_opts(e)
     e.set_defaults(func=cmd_explain)
 
     c = sub.add_parser("check", help="임의 좌표 확인")
@@ -283,6 +339,10 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--step", type=float, default=250.0)
     add_terrain_opts(rep)
     rep.set_defaults(func=cmd_report)
+
+    d = sub.add_parser("dem", help="받은 수치표고모델 점검")
+    d.add_argument("path", help="ESRI ASCII 격자(.asc) 파일")
+    d.set_defaults(func=cmd_dem)
 
     sub.add_parser("spots", help="후보지 목록").set_defaults(func=cmd_spots)
     sub.add_parser("sites", help="발사 지점과 프로그램").set_defaults(func=cmd_sites)

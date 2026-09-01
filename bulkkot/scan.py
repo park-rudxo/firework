@@ -43,12 +43,18 @@ def scan(
     terrain: Terrain | None = None,
     exclude_inside_buildings: bool = True,
     eye_height_m: float = 1.6,
+    occluder: Terrain | None = None,
 ) -> list[SpotScore]:
     """격자 전체를 평가해 점수 순으로 돌려준다.
 
     crowd/access는 알 수 없으므로 중립값(0.5)으로 두고, 기하 점수만으로
     줄을 세운다. 즉 여기서 나오는 순위는 '사람이 얼마나 몰리는지'를 뺀
     순수한 '보이느냐'의 순위다.
+
+    언덕은 두 가지로 작용한다. 관람자를 들어올리고, 앞을 가로막는다.
+    terrain 이 앞의 역할, occluder 가 뒤의 역할이다. 둘을 나눠 받는 이유는
+    능선 근사(RidgeTerrain)를 차폐에까지 쓰면 obstacles.json 의 능선과
+    이중으로 계산되기 때문이다. 실측 DEM일 때만 occluder 로 넘기면 된다.
     """
     terrain = terrain or FlatTerrain()
     results: list[SpotScore] = []
@@ -65,7 +71,7 @@ def scan(
             crowd=0.5,
             access=0.5,
         )
-        results.append(evaluate(vp, sites, show, field, HIDDEN_WEIGHTS))
+        results.append(evaluate(vp, sites, show, field, HIDDEN_WEIGHTS, occluder))
     results.sort(key=lambda s: s.total, reverse=True)
     return results
 

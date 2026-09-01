@@ -89,6 +89,7 @@ def build_payload(
     profile_site_id: str | None = None,
     grid: Sequence[SpotScore] = (),
     data_note: str = "",
+    terrain=None,
 ) -> dict:
     site_by_id = {s.id: s for s in sites}
     if profile_site_id is None:
@@ -101,7 +102,7 @@ def build_payload(
     spots = []
     for sc in scores:
         entry = sc.to_dict()
-        profile = sight_profile(sc.viewpoint, profile_site, field, samples=90)
+        profile = sight_profile(sc.viewpoint, profile_site, field, samples=90, terrain=terrain)
         entry["profile"] = {
             "site_id": profile_site.id,
             "site_name": profile_site.name,

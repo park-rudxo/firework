@@ -127,11 +127,12 @@ def evaluate(
     show: Show,
     field: ObstacleField,
     weights: dict[str, float] | None = None,
+    terrain=None,
 ) -> SpotScore:
     """후보지 하나를 평가한다."""
     w = dict(weights or DEFAULT_WEIGHTS)
     site_by_id = {s.id: s for s in sites}
-    sights = {s.id: sight(viewer, s, field) for s in sites}
+    sights = {s.id: sight(viewer, s, field, terrain=terrain) for s in sites}
 
     timeline: list[EffectVisibility] = []
     sky_num = 0.0
@@ -229,8 +230,9 @@ def rank(
     show: Show,
     field: ObstacleField,
     weights: dict[str, float] | None = None,
+    terrain=None,
 ) -> list[SpotScore]:
-    scores = [evaluate(v, sites, show, field, weights) for v in viewers]
+    scores = [evaluate(v, sites, show, field, weights, terrain) for v in viewers]
     scores.sort(key=lambda s: s.total, reverse=True)
     return scores
 

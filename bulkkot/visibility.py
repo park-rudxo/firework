@@ -29,6 +29,12 @@ _GROUND_SAMPLES = 48
 # 관람자가 딛고 선 능선/둔덕은 시야를 막지 않는다. 이 거리 안의 교차는 무시한다.
 _UNDERFOOT_M = 30.0
 
+# 지형 표본 간격과, 관람자 발밑을 건너뛰는 거리.
+# 발밑을 건너뛰지 않으면 자기가 선 지면이 시선을 수직으로 막는 것으로 계산된다.
+_TERRAIN_STEP_M = 25.0
+_TERRAIN_SKIP_M = 60.0
+_TERRAIN_MAX_SAMPLES = 400
+
 
 class ObstacleField:
     """장애물 집합 + 시선 질의를 위한 균일 격자 색인."""
@@ -181,11 +187,51 @@ def ground_horizon_requirement(
     return best
 
 
+def terrain_requirement(
+    viewer: Viewpoint,
+    site: LaunchSite,
+    terrain,
+    step_m: float = _TERRAIN_STEP_M,
+    skip_m: float = _TERRAIN_SKIP_M,
+) -> Blocker | None:
+    """지형 자체가 요구하는 최소 도착 표고.
+
+    수치표고모델이 있으면 언덕은 두 가지로 작용한다. 관람자를 들어올리기도 하고,
+    앞을 가로막기도 한다. 후자가 여기서 계산된다 — 시선을 따라 지반고를 훑으며
+    건물과 똑같은 공식을 적용한다.
+
+    관람자 발밑 skip_m 안쪽은 건너뛴다. 자기가 딛고 선 지면은 시야를 막지 않고,
+    그 구간을 넣으면 DEM 잡음 하나가 결과 전체를 뒤집는다.
+    """
+    total = geo.distance_m(viewer.latlon, site.latlon)
+    if total <= skip_m:
+        return None
+    z_eye = viewer.eye_elev_m
+    count = min(_TERRAIN_MAX_SAMPLES, max(2, int((total - skip_m) / step_m)))
+
+    best: Blocker | None = None
+    for i in range(count + 1):
+        s = skip_m + (total - skip_m) * i / count
+        if s >= total:
+            break
+        t = s / total
+        lat = viewer.lat + (site.lat - viewer.lat) * t
+        lon = viewer.lon + (site.lon - viewer.lon) * t
+        elev = terrain.elevation(lat, lon)
+        if elev <= z_eye:
+            continue
+        need = geo.required_z_end(s, total, z_eye, elev)
+        if best is None or need > best.required_elev_m:
+            best = Blocker("terrain", "지형", s, elev, need)
+    return best
+
+
 def sight(
     viewer: Viewpoint,
     site: LaunchSite,
     field: ObstacleField,
     ground_elev_m: float | None = None,
+    terrain=None,
 ) -> Sight:
     """한 후보지 → 한 발사 지점의 가시 기하."""
     distance = geo.distance_m(viewer.latlon, site.latlon)
@@ -195,6 +241,12 @@ def sight(
         geo.enu(viewer.lat, viewer.lon, field.ref[0], field.ref[1]),
         geo.enu(site.lat, site.lon, field.ref[0], field.ref[1]),
     )
+
+    if terrain is not None:
+        ground = terrain_requirement(viewer, site, terrain)
+        if ground is not None:
+            blockers.append(ground)
+            required = max(required, ground.required_elev_m)
 
     horizon = ground_horizon_requirement(viewer, site, ground_elev_m)
     limiting: Blocker | None = None
@@ -225,6 +277,7 @@ def sight_profile(
     site: LaunchSite,
     field: ObstacleField,
     samples: int = 160,
+    terrain=None,
 ) -> list[tuple[float, float]]:
     """시선 단면도용 (수평거리, 차폐 표고) 시퀀스.
 
@@ -257,6 +310,15 @@ def sight_profile(
     for i in range(samples + 1):
         s = total * i / samples
         top = min(viewer.ground_elev_m, 0.0)
+        if terrain is not None:
+            t = s / total if total else 0.0
+            top = max(
+                top,
+                terrain.elevation(
+                    viewer.lat + (site.lat - viewer.lat) * t,
+                    viewer.lon + (site.lon - viewer.lon) * t,
+                ),
+            )
         for lo, hi, z in spans:
             if lo <= s <= hi and z > top:
                 top = z

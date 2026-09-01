@@ -80,6 +80,12 @@ class AsciiGridTerrain:
 
     @classmethod
     def from_file(cls, path: str | Path, fallback: float = 0.0) -> "AsciiGridTerrain":
+        """헤더를 읽고 좌표계를 검증한 뒤 격자를 통째로 올린다.
+
+        국토지리정보원 DEM은 보통 EPSG:5186(중부원점) 같은 투영 좌표계로 온다.
+        이 클래스는 경위도 격자를 가정하므로, 투영 좌표로 보이는 파일은
+        조용히 어긋난 답을 내놓는 대신 여기서 막는다.
+        """
         header: dict[str, float] = {}
         rows: list[list[float]] = []
         with Path(path).open(encoding="utf-8") as fh:
@@ -97,14 +103,43 @@ class AsciiGridTerrain:
                     rows.append([float(v) for v in parts])
         xll = header.get("xllcorner", header.get("xllcenter", 0.0))
         yll = header.get("yllcorner", header.get("yllcenter", 0.0))
-        return cls(
-            rows,
-            xll,
-            yll,
-            header.get("cellsize", 1.0),
-            header.get("nodata_value", -9999.0),
-            fallback,
-        )
+        cellsize = header.get("cellsize", 1.0)
+
+        if abs(xll) > 180.0 or abs(yll) > 90.0 or cellsize > 0.05:
+            raise ValueError(
+                f"{path} 는 경위도 격자가 아닌 것 같습니다 "
+                f"(xll={xll:g}, yll={yll:g}, cellsize={cellsize:g}). "
+                "투영 좌표계 DEM은 먼저 WGS84로 변환하세요:\n"
+                "  gdalwarp -t_srs EPSG:4326 -tr 0.0002 0.0002 -r bilinear in.tif wgs84.tif\n"
+                "  gdal_translate -of AAIGrid wgs84.tif dem.asc"
+            )
+
+        return cls(rows, xll, yll, cellsize, header.get("nodata_value", -9999.0), fallback)
+
+    def summary(self) -> dict[str, float | int | str]:
+        """받은 DEM이 쓸 만한지 눈으로 확인하기 위한 요약."""
+        values = [
+            v for row in self.values for v in row if abs(v - self.nodata) > 1e-6
+        ]
+        lat_lo = self.yll
+        lat_hi = self.yll + self.nrows * self.cellsize
+        lon_lo = self.xll
+        lon_hi = self.xll + self.ncols * self.cellsize
+        mid_lat = (lat_lo + lat_hi) / 2.0
+        return {
+            "격자": f"{self.ncols} × {self.nrows}",
+            "셀 크기(도)": round(self.cellsize, 8),
+            "셀 크기(m, 남북)": round(self.cellsize * 111_320, 2),
+            "셀 크기(m, 동서)": round(
+                self.cellsize * 111_320 * math.cos(math.radians(mid_lat)), 2
+            ),
+            "위도 범위": f"{lat_lo:.5f} ~ {lat_hi:.5f}",
+            "경도 범위": f"{lon_lo:.5f} ~ {lon_hi:.5f}",
+            "표고 최소": round(min(values), 1) if values else 0.0,
+            "표고 최대": round(max(values), 1) if values else 0.0,
+            "유효 셀": len(values),
+            "결측 셀": self.ncols * self.nrows - len(values),
+        }
 
     def elevation(self, lat: float, lon: float) -> float:
         if self.ncols == 0:
