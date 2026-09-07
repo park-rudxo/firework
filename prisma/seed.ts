@@ -95,6 +95,7 @@ async function main() {
   await db.survey.deleteMany();
   await db.projectEvent.deleteMany();
   await db.report.deleteMany();
+  await db.notification.deleteMany();
   await db.project.deleteMany();
   await db.user.deleteMany();
 

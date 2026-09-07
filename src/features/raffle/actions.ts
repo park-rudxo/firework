@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
 import { createSeed, drawWinners } from "@/features/raffle/draw";
+import { notify, notifyMany } from "@/features/notification/create";
 
 export type RaffleState = { error: string | null };
 
@@ -129,8 +130,9 @@ export async function drawRaffle(raffleId: string): Promise<RaffleState> {
       seed: true,
       winnerCount: true,
       closesAt: true,
-      project: { select: { ownerId: true, slug: true } },
-      entries: { select: { id: true, ticketCode: true } },
+      prizeName: true,
+      project: { select: { ownerId: true, slug: true, name: true } },
+      entries: { select: { id: true, ticketCode: true, userId: true } },
     },
   });
   if (!raffle) return { error: "추첨을 찾을 수 없습니다." };
@@ -162,6 +164,19 @@ export async function drawRaffle(raffleId: string): Promise<RaffleState> {
     }),
   ]);
 
+  // 알리지 않으면 당첨자가 이 페이지를 우연히 다시 열어야만 당첨을 안다.
+  // 경품이 설문 응답의 유일한 인센티브라 이 고리가 끊기면 기능이 반쪽이 된다.
+  const winnerUserIds = winners
+    .map((w) => raffle.entries.find((e) => e.ticketCode === w.ticketCode)?.userId)
+    .filter((id): id is string => Boolean(id));
+
+  await notifyMany(winnerUserIds, {
+    type: "RAFFLE_WON",
+    title: `축하합니다! ${raffle.prizeName} 에 당첨되셨습니다`,
+    body: `${raffle.project.name} 추첨 결과입니다. 경품을 받을 연락처를 남겨주세요.`,
+    url: `/raffles/${raffle.id}`,
+  });
+
   revalidatePath(`/raffles/${raffleId}`);
   revalidatePath(`/projects/${raffle.project.slug}`);
   return { error: null };
@@ -179,7 +194,11 @@ export async function submitWinnerContact(
 
   const winner = await db.raffleWinner.findUnique({
     where: { id: winnerId },
-    select: { id: true, entry: { select: { userId: true } }, raffle: { select: { id: true } } },
+    select: {
+      id: true,
+      entry: { select: { userId: true } },
+      raffle: { select: { id: true, prizeName: true, project: { select: { ownerId: true } } } },
+    },
   });
   if (!winner) return { error: "당첨 정보를 찾을 수 없습니다." };
   if (winner.entry.userId !== viewer.id) return { error: "본인의 당첨 건만 제출할 수 있습니다." };
@@ -190,6 +209,14 @@ export async function submitWinnerContact(
   await db.raffleWinner.update({
     where: { id: winnerId },
     data: { contactInfo: parsed.data, claimStatus: "SUBMITTED" },
+  });
+
+  await notify({
+    userId: winner.raffle.project.ownerId,
+    type: "RAFFLE_CONTACT_SUBMITTED",
+    title: "당첨자가 연락처를 남겼습니다",
+    body: `${winner.raffle.prizeName} — 경품을 보내주세요.`,
+    url: `/raffles/${winner.raffle.id}`,
   });
 
   revalidatePath(`/raffles/${winner.raffle.id}`);

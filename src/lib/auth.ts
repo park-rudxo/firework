@@ -3,7 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 
 import { db } from "@/lib/db";
-import { configuredProviders, serverEnv } from "@/lib/env";
+import { bootstrapAdminEmails, configuredProviders, serverEnv } from "@/lib/env";
 
 const env = serverEnv();
 const available = configuredProviders(env);
@@ -70,6 +70,45 @@ async function syncGithubLogin(userId: string, accessToken: string | null) {
   }
 }
 
+/**
+ * ADMIN_EMAILS 에 적힌 이메일이면 관리자로 승격한다.
+ *
+ * 배포 직후에는 관리자가 아무도 없어서 신고 큐를 열 사람이 없다. 그 부트스트랩
+ * 문제를 푸는 경로다. 가입할 때만 보면 이미 가입한 사람은 승격되지 않으므로
+ * 로그인할 때마다(session.create) 확인한다.
+ *
+ * 이메일은 소셜 프로바이더가 알려주는 값이라 프로바이더를 믿어야 의미가 있다.
+ * 계정 연결에서 Google·GitHub 만 신뢰한 것과 같은 기준으로, 승격도
+ * emailVerified 인 계정에만 적용한다.
+ */
+async function syncBootstrapAdmin(userId: string) {
+  const emails = bootstrapAdminEmails(env);
+  if (emails.length === 0) return;
+
+  try {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { email: true, emailVerified: true, profile: { select: { role: true } } },
+    });
+    if (!user?.emailVerified) return;
+    if (!emails.includes(user.email.toLowerCase())) return;
+    if (user.profile?.role === "ADMIN") return;
+
+    await db.profile.updateMany({ where: { userId }, data: { role: "ADMIN" } });
+    await db.notification.create({
+      data: {
+        userId,
+        type: "ADMIN_GRANTED",
+        title: "관리자로 지정되었습니다",
+        body: "신고 큐를 확인하고 다른 사람을 관리자로 임명할 수 있습니다.",
+        url: "/admin/reports",
+      },
+    });
+  } catch {
+    // 승격에 실패해도 로그인 자체는 막지 않는다.
+  }
+}
+
 export const auth = betterAuth({
   appName: "firework",
   secret: env.BETTER_AUTH_SECRET,
@@ -110,6 +149,14 @@ export const auth = betterAuth({
           await db.profile.create({
             data: { userId: user.id, displayName: user.name || "익명" },
           });
+          await syncBootstrapAdmin(user.id);
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session) => {
+          await syncBootstrapAdmin(session.userId);
         },
       },
     },

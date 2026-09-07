@@ -21,6 +21,11 @@ const serverSchema = z.object({
 
   // 저장소 메타 수집용. 없어도 동작하지만 시간당 60회로 제한된다.
   GITHUB_TOKEN: z.string().optional(),
+
+  // 최초 관리자를 만드는 경로. 콤마로 구분한 이메일 목록.
+  // 여기 적힌 이메일로 로그인하면 관리자로 승격된다. 그 뒤로는 관리자가
+  // 화면에서 다른 사람을 임명할 수 있으므로, 이 값은 부트스트랩 용도다.
+  ADMIN_EMAILS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -43,6 +48,19 @@ export function serverEnv(): ServerEnv {
 
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * 부트스트랩 관리자 이메일 목록.
+ *
+ * 이메일은 소셜 프로바이더가 알려주는 값이므로, 프로바이더를 믿을 수 있어야
+ * 의미가 있다. 그래서 승격은 emailVerified 인 계정에만 적용한다(auth.ts 참고).
+ */
+export function bootstrapAdminEmails(env: ServerEnv): string[] {
+  return (env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 /** 자격증명이 양쪽 다 채워진 프로바이더만 "설정됨"으로 본다. */

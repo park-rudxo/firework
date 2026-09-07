@@ -5,7 +5,8 @@ import { Prisma, type ReportReason, type ReportTargetType } from "@prisma/client
 
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
-import { REASON_SEVERITY } from "@/features/report/policy";
+import { adminUserIds, notify, notifyMany } from "@/features/notification/create";
+import { REASON_LABEL, REASON_SEVERITY, goesToAdminQueue } from "@/features/report/policy";
 
 const schema = z.object({
   targetType: z.enum(["PROJECT", "PROJECT_EVENT", "SURVEY_RESPONSE", "USER"]),
@@ -68,6 +69,32 @@ export async function submitReport(_prev: ReportState, form: FormData): Promise<
   }
 
   // 신고가 접수돼도 대상의 상태는 바뀌지 않는다. 숨김·삭제는 관리자만 한다.
+  // 알림은 "누가 봐야 하는가" 만 가른다.
+  const severity = REASON_SEVERITY[reason as ReportReason];
+  if (goesToAdminQueue(severity)) {
+    await notifyMany(await adminUserIds(), {
+      type: "REPORT_FILED",
+      title: severity === "CRITICAL" ? `긴급 신고: ${REASON_LABEL[reason]}` : `신고 접수: ${REASON_LABEL[reason]}`,
+      body: detail ?? undefined,
+      url: "/admin/reports",
+    });
+  } else if (targetType === "PROJECT") {
+    // BROKEN_LINK 는 제보성이라 관리자를 거치지 않고 제작자에게만 간다.
+    const project = await db.project.findUnique({
+      where: { id: targetId },
+      select: { ownerId: true, slug: true, name: true },
+    });
+    if (project) {
+      await notify({
+        userId: project.ownerId,
+        type: "BROKEN_LINK_REPORTED",
+        title: "링크가 동작하지 않는다는 제보가 있습니다",
+        body: `${project.name} — ${detail ?? "저장소나 데모 주소를 확인해주세요."}`,
+        url: `/projects/${project.slug}/edit`,
+      });
+    }
+  }
+
   return {
     ok: true,
     message:
