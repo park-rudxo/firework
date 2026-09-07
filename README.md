@@ -114,11 +114,19 @@ npm run dev         # 개발 서버
 npm run build       # 프로덕션 빌드
 npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
-npm test            # Vitest
-npm run e2e         # Playwright
+npm test            # Vitest — 익명성 스키마, 추첨 결정성, 새니타이즈
+npm run e2e         # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
 npm run db:migrate  # 마이그레이션 생성·적용
+npm run db:seed     # 개발용 시드 데이터
 npm run db:studio   # Prisma Studio
 ```
+
+E2E 는 시드가 들어간 DB 를 전제로 한다. 브라우저가 이미 깔린 환경(CI 러너, 샌드박스)에서는
+`PLAYWRIGHT_CHROMIUM_PATH` 로 실행 파일 경로를 넘기면 새로 내려받지 않는다.
+
+로그인 뒤의 흐름(설문 제출, 추첨 실행)은 소셜 OAuth 가 필요해 E2E 로 재현하지 않는다.
+그쪽은 순수 함수 단위 테스트와 스키마 검사로 덮는다 — 추첨은 부수효과 없는 함수라 결정성을
+직접 검증할 수 있고, 익명성은 스키마 형태 자체를 단언한다.
 
 ---
 
