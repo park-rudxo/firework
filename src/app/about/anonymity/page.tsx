@@ -33,8 +33,8 @@ export default function AnonymityPage() {
             <h3 className="text-sm font-medium">응답 내용</h3>
             <ul className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
               <li>· 답변</li>
-              <li>· 응답한 <strong className="text-foreground">날짜</strong></li>
               <li className="text-danger">· 작성자 정보 없음</li>
+              <li className="text-danger">· 언제 썼는지도 없음</li>
             </ul>
           </div>
           <div className="rounded-card border border-border bg-surface p-4">
@@ -59,8 +59,10 @@ export default function AnonymityPage() {
         <h2 className="text-lg font-semibold">우회로도 막았습니다</h2>
         <ul className="mt-3 flex flex-col gap-3 text-sm text-muted-foreground">
           <li>
-            <strong className="text-foreground">시각이 아니라 날짜만 남깁니다.</strong> 초 단위
-            시각을 남기면 참여 기록의 시각과 맞춰서 누가 무엇을 썼는지 짜맞출 수 있습니다.
+            <strong className="text-foreground">언제 썼는지를 남기지 않습니다.</strong> 처음에는
+            &ldquo;시각은 위험하니 날짜만&rdquo;으로 뒀는데, 그걸로는 부족했습니다. 하루에 응답이
+            한 건뿐인 날이면 그 날짜만으로 참여 기록과 1:1로 붙어버립니다. 사용자가 적은
+            서비스에서는 그런 날이 오히려 흔합니다. 그래서 날짜조차 두지 않습니다.
           </li>
           <li>
             <strong className="text-foreground">응답에 순번을 매기지 않습니다.</strong> 1번, 2번

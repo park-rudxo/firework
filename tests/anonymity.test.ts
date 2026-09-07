@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { canRevealIndividualResponses, MIN_RESPONSES_TO_REVEAL, respondedOnToday } from "@/features/survey/anonymity";
+import { canRevealIndividualResponses, MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
 
 /**
  * 익명성은 코드 규칙이 아니라 스키마 형태로 보장된다.
@@ -34,10 +34,21 @@ describe("설문 응답 스키마", () => {
     }
   });
 
-  it("제출 시각이 아니라 날짜만 저장한다", () => {
-    // timestamp 를 남기면 SurveyParticipation.createdAt 과 타이밍으로 조인할 수 있다.
-    expect(response).toMatch(/respondedOn\s+DateTime\s+@db\.Date/);
-    expect(response).not.toMatch(/createdAt/);
+  it("시간 정보를 아예 담지 않는다", () => {
+    // 처음에는 "시각은 위험하니 날짜만" 으로 뒀는데 그것으로 부족했다.
+    // 하루 응답이 한 건뿐인 날이면 그 날짜만으로 SurveyParticipation.createdAt 과
+    // 1:1 로 붙는다. 사용자가 적은 서비스에서는 그런 날이 오히려 흔하다.
+    expect(response).not.toMatch(/DateTime/);
+    expect(response).not.toMatch(/createdAt|respondedOn|updatedAt|submittedAt/);
+  });
+
+  it("담는 필드가 id·surveyId·answers 뿐이다", () => {
+    const fields = response
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("//") && !line.startsWith("@@"))
+      .map((line) => line.split(/\s+/)[0]!);
+    expect(fields.sort()).toEqual(["answers", "id", "survey", "surveyId"]);
   });
 
   it("id 가 순번이 아니라 UUID 다 — 제출 순서를 추론할 수 없어야 한다", () => {
@@ -77,12 +88,12 @@ describe("개별 응답 공개 임계", () => {
   });
 });
 
-describe("응답 날짜", () => {
-  it("시각 성분이 전부 0이다", () => {
-    const d = respondedOnToday();
-    expect(d.getUTCHours()).toBe(0);
-    expect(d.getUTCMinutes()).toBe(0);
-    expect(d.getUTCSeconds()).toBe(0);
-    expect(d.getUTCMilliseconds()).toBe(0);
+describe("기간별 집계 경로", () => {
+  it("설문 응답 수는 개인과 무관한 합계 테이블에서 센다", () => {
+    // 응답 행에 시간이 없으므로 "이번 주 인기" 같은 기간 집계는 여기서만 나온다.
+    // 합계라서 개인을 되짚을 수 없다.
+    const rollup = modelBody("ProjectStatDaily");
+    expect(rollup).toMatch(/surveyResponses\s+Int/);
+    expect(rollup).not.toMatch(/\buserId\b/);
   });
 });

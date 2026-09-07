@@ -27,29 +27,19 @@ export type ScoredProject = { projectId: string; score: number };
 export async function scoreProjects(since?: Date): Promise<Map<string, number>> {
   const createdAtFilter = since ? { createdAt: { gte: since } } : {};
   const dayFilter = since ? { day: { gte: since } } : {};
-  const respondedOnFilter = since ? { respondedOn: { gte: since } } : {};
 
-  const [likes, follows, tries, views, surveys] = await Promise.all([
+  const [likes, follows, tries, daily] = await Promise.all([
     db.projectLike.groupBy({ by: ["projectId"], where: createdAtFilter, _count: { _all: true } }),
     db.projectFollow.groupBy({ by: ["projectId"], where: createdAtFilter, _count: { _all: true } }),
     db.projectTry.groupBy({ by: ["projectId"], where: createdAtFilter, _count: { _all: true } }),
+    // 설문 응답 수도 여기서 나온다. 응답 행에는 시간이 없어(익명성) 기간으로
+    // 셀 수 있는 곳이 이 집계뿐이다.
     db.projectStatDaily.groupBy({
       by: ["projectId"],
       where: dayFilter,
-      _sum: { views: true },
+      _sum: { views: true, surveyResponses: true },
     }),
-    // 설문 응답은 surveyId 로만 묶이므로 프로젝트로 옮기려면 설문 목록이 필요하다.
-    db.survey.findMany({ select: { id: true, projectId: true } }),
   ]);
-
-  const surveyToProject = new Map(surveys.map((s) => [s.id, s.projectId]));
-  const responses = surveys.length
-    ? await db.surveyResponse.groupBy({
-        by: ["surveyId"],
-        where: respondedOnFilter,
-        _count: { _all: true },
-      })
-    : [];
 
   const score = new Map<string, number>();
   const add = (projectId: string, value: number) => {
@@ -60,10 +50,9 @@ export async function scoreProjects(since?: Date): Promise<Map<string, number>> 
   for (const row of likes) add(row.projectId, row._count._all * WEIGHTS.likes);
   for (const row of follows) add(row.projectId, row._count._all * WEIGHTS.follows);
   for (const row of tries) add(row.projectId, row._count._all * WEIGHTS.tries);
-  for (const row of views) add(row.projectId, (row._sum.views ?? 0) * WEIGHTS.views);
-  for (const row of responses) {
-    const projectId = surveyToProject.get(row.surveyId);
-    if (projectId) add(projectId, row._count._all * WEIGHTS.surveyResponses);
+  for (const row of daily) {
+    add(row.projectId, (row._sum.views ?? 0) * WEIGHTS.views);
+    add(row.projectId, (row._sum.surveyResponses ?? 0) * WEIGHTS.surveyResponses);
   }
 
   return score;

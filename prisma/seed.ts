@@ -183,6 +183,7 @@ async function main() {
         day: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())),
         views: 40 + i * 17,
         outboundClicks: 5 + i * 3,
+        surveyResponses: i === 0 ? 5 : i === 1 ? 2 : 0,
       },
     });
 
@@ -305,9 +306,6 @@ async function main() {
             good: goodComments[j % goodComments.length],
             improve: improveComments[j % improveComments.length],
           },
-          respondedOn: new Date(
-            Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() - (j % 5)),
-          ),
         },
       });
       await db.raffleEntry.create({

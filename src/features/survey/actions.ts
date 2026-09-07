@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
-import { respondedOnToday } from "@/features/survey/anonymity";
+import { bumpStat } from "@/features/curation/stats";
 import {
   answersFromFormData,
   buildAnswerSchema,
@@ -23,7 +23,7 @@ export type SurveyState = { ok: boolean; error: string | null; enteredRaffle?: b
  * 익명성의 핵심이 여기 있다. 한 트랜잭션 안에서 두 레코드를 만들지만
  * 둘은 서로를 가리키지 않는다.
  *
- *   survey_response       내용만.  userId 없음. 시각이 아니라 날짜만.
+ *   survey_response       내용만.  userId 도, 시간 정보도 없음.
  *   survey_participation  누구인지만.  내용 없음.
  *
  * 그래서 DB 를 통째로 들여다봐도 "이 사람이 이 응답을 썼다"를 복원할 수 없다.
@@ -86,13 +86,10 @@ export async function submitSurveyResponse(
         data: { surveyId, userId: viewer.id },
       });
 
-      // 2) 응답 내용. userId 를 넣을 자리가 아예 없고, 날짜만 남긴다.
+      // 2) 응답 내용. userId 를 넣을 자리도, 언제 썼는지 남길 자리도 없다.
+      //    날짜만 남겨도 하루 응답이 한 건인 날에는 위 참여 기록과 1:1 로 붙는다.
       await tx.surveyResponse.create({
-        data: {
-          surveyId,
-          answers: parsed.data as Prisma.InputJsonValue,
-          respondedOn: respondedOnToday(),
-        },
+        data: { surveyId, answers: parsed.data as Prisma.InputJsonValue },
       });
 
       // 3) 응모권도 participation 쪽에만 붙는다. 응답 내용과는 연결되지 않는다.
@@ -113,7 +110,9 @@ export async function submitSurveyResponse(
     throw err;
   }
 
-  // 설문 응답은 SurveyResponse.respondedOn 으로 직접 세므로 별도 카운터가 필요 없다.
+  // 응답 행에 시간이 없으므로 기간별 집계는 이 카운터로만 낸다.
+  // 개인과 연결되지 않는 합계라서 익명성을 해치지 않는다.
+  await bumpStat(survey.project.id, "surveyResponses");
   revalidatePath(`/projects/${survey.project.slug}`);
 
   return { ok: true, error: null, enteredRaffle: Boolean(openRaffle) };

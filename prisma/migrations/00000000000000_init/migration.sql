@@ -195,6 +195,7 @@ CREATE TABLE "project_stat_daily" (
     "day" DATE NOT NULL,
     "views" INTEGER NOT NULL DEFAULT 0,
     "outboundClicks" INTEGER NOT NULL DEFAULT 0,
+    "surveyResponses" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "project_stat_daily_pkey" PRIMARY KEY ("projectId","day")
 );
@@ -253,7 +254,6 @@ CREATE TABLE "survey_response" (
     "id" TEXT NOT NULL,
     "surveyId" TEXT NOT NULL,
     "answers" JSONB NOT NULL,
-    "respondedOn" DATE NOT NULL,
 
     CONSTRAINT "survey_response_pkey" PRIMARY KEY ("id")
 );

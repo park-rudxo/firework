@@ -75,7 +75,7 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
   if (!parsedQuestions.success) return null;
   const questions: Question[] = parsedQuestions.data;
 
-  // 정렬하지 않는다. 제출 순서를 노출하지 않기 위해서다(id 도 UUID 라 순서가 없다).
+  // 응답 행에는 시간도 순번도 없다. 돌아오는 순서에 의미가 없으므로 그대로 쓴다.
   const responses = await db.surveyResponse.findMany({
     where: { surveyId },
     select: { answers: true },

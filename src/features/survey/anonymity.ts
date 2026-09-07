@@ -26,15 +26,16 @@ export function canRevealIndividualResponses(responseCount: number): boolean {
 }
 
 /**
- * 응답 저장에 쓸 날짜. **시각이 아니라 날짜다.**
+ * 응답에는 시간 정보를 저장하지 않는다.
  *
- * 초 단위 시각을 남기면 survey_participation.createdAt 과 타이밍으로 맞춰
- * "누가 무엇을 썼는지" 복원할 수 있다. 그래서 UTC 자정으로 절삭한다.
+ * 처음에는 "시각은 위험하니 날짜만" 으로 두었는데, 그것으로 부족하다.
+ * 하루 응답이 한 건뿐인 날이면 그 날짜만으로 survey_participation.createdAt 과
+ * 1:1 로 붙는다. 사용자가 적은 서비스에서는 그런 날이 오히려 흔하다.
+ *
+ * 그래서 응답 행에는 언제 썼는지를 아예 남기지 않는다. 기간별 집계가 필요한
+ * 곳(홈의 주간 인기)은 개인과 무관한 합계 카운터를 쓴다.
  */
-export function respondedOnToday(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
+export const RESPONSES_STORE_NO_TIME = true;
 
 /**
  * 자유서술은 본인이 스스로 신원을 드러낼 수 있다("제가 저번에 말씀드린…").
