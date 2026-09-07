@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Next 16 은 next build 에서 lint 를 돌리지 않으므로 여기서 따로 돌린다.
+      - name: 의존성 설치
+        run: npm ci
+        env:
+          # postinstall 의 prisma generate 가 연결 문자열을 읽는다. 접속은 하지 않는다.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 린트
+        run: npm run lint
+
+      - name: 테스트
+        run: npm test
+
+      - name: 빌드
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere
+          BETTER_AUTH_URL: http://localhost:3000

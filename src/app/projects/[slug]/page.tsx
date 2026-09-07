@@ -5,6 +5,7 @@ import { BadgeCheck, ExternalLink, Star, GitFork, Scale, Clock } from "lucide-re
 
 import { GithubMark } from "@/components/icons/github-mark";
 import { ProjectIcon } from "@/components/project/project-card";
+import { EngagementBanner, EventTimeline } from "@/components/project/project-engagement";
 import { ProjectReactions } from "@/components/project/project-reactions";
 import { ReportButton } from "@/components/report/report-button";
 import { Screenshots } from "@/components/project/screenshots";
@@ -13,6 +14,9 @@ import { refreshSnapshot } from "@/features/project/actions";
 import { getProjectBySlug, getViewerReactions } from "@/features/project/queries";
 import { CATEGORY_LABEL } from "@/features/project/schema";
 import { bumpStat } from "@/features/curation/stats";
+import { listProjectEvents } from "@/features/calendar/queries";
+import { getOpenSurvey, hasResponded } from "@/features/survey/queries";
+import { db } from "@/lib/db";
 import { renderMarkdown, sanitizeHtml } from "@/lib/sanitize";
 import { getViewer } from "@/lib/session";
 
@@ -42,14 +46,27 @@ export default async function ProjectDetailPage({
   // TTL(6시간)이 지났으면 조용히 갱신한다. 실패해도 기존 스냅샷으로 계속 보여준다.
   await refreshSnapshot(project.id, project.repoUrl);
 
-  const [reactions, descriptionHtml, readmeHtml] = await Promise.all([
+  const [reactions, descriptionHtml, readmeHtml, survey, events] = await Promise.all([
     getViewerReactions(project.id, viewer?.id),
     project.description ? renderMarkdown(project.description) : Promise.resolve(""),
     // GitHub README 는 남이 쓴 HTML 이다. 렌더 직전에 반드시 정화한다.
     project.snapshot?.readmeHtml
       ? sanitizeHtml(project.snapshot.readmeHtml)
       : Promise.resolve(""),
+    getOpenSurvey(project.id),
+    listProjectEvents(project.id),
   ]);
+
+  // 설문이 열려 있을 때만 추첨과 응답 여부를 확인한다.
+  const [raffle, alreadyResponded] = survey
+    ? await Promise.all([
+        db.raffle.findFirst({
+          where: { surveyId: survey.id, status: "OPEN", closesAt: { gte: new Date() } },
+          select: { id: true, prizeName: true, winnerCount: true, closesAt: true },
+        }),
+        hasResponded(survey.id, viewer?.id),
+      ])
+    : [null, false];
 
   if (project.status === "PUBLISHED") {
     await bumpStat(project.id, "views");
@@ -140,6 +157,14 @@ export default async function ProjectDetailPage({
         </div>
       </div>
 
+      <EngagementBanner
+        slug={slug}
+        survey={survey ? { id: survey.id, title: survey.title, closesAt: survey.closesAt } : null}
+        raffle={raffle}
+        alreadyResponded={alreadyResponded}
+        isOwner={isOwner}
+      />
+
       {project.snapshot ? (
         <dl className="mt-6 flex flex-wrap gap-x-6 gap-y-2 rounded-card border border-border bg-surface px-4 py-3 text-sm">
           <Stat icon={Star} label="스타" value={project.snapshot.stars.toLocaleString()} />
@@ -192,6 +217,8 @@ export default async function ProjectDetailPage({
           <Screenshots urls={project.screenshots} name={project.name} />
         </section>
       ) : null}
+
+      <EventTimeline events={events} />
 
       {descriptionHtml ? (
         <section className="mt-10">
