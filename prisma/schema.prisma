@@ -251,6 +251,7 @@ model ProjectLike {
 
   @@id([projectId, userId])
   @@index([userId])
+  @@index([createdAt])
   @@map("project_like")
 }
 
@@ -264,6 +265,7 @@ model ProjectFollow {
 
   @@id([projectId, userId])
   @@index([userId])
+  @@index([createdAt])
   @@map("project_follow")
 }
 
@@ -277,22 +279,22 @@ model ProjectTry {
 
   @@id([projectId, userId])
   @@index([userId])
+  @@index([createdAt])
   @@map("project_try")
 }
 
-/// 일별 롤업. 배치 없이 이벤트 발생 시점에 증분한다.
-/// 홈의 "이번 주 인기"는 최근 7일 합, "역대 인기"는 전체 합으로 계산한다.
+/// 일별 롤업. 배치 없이 발생 시점에 증분한다.
+///
+/// **되돌릴 수 없는 지표만 담는다.** 좋아요·관심등록·써봤어요를 여기에 누적하면
+/// 껐다 켜기를 반복해 점수를 무한히 부풀릴 수 있다. 그 셋은 피벗 테이블에
+/// 정확한 현재 상태가 있으므로 createdAt 으로 직접 센다.
 model ProjectStatDaily {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   day       DateTime @db.Date
 
-  views           Int @default(0)
-  likes           Int @default(0)
-  follows         Int @default(0)
-  tries           Int @default(0)
-  surveyResponses Int @default(0)
-  outboundClicks  Int @default(0)
+  views          Int @default(0)
+  outboundClicks Int @default(0)
 
   @@id([projectId, day])
   @@index([day])

@@ -194,10 +194,6 @@ CREATE TABLE "project_stat_daily" (
     "projectId" TEXT NOT NULL,
     "day" DATE NOT NULL,
     "views" INTEGER NOT NULL DEFAULT 0,
-    "likes" INTEGER NOT NULL DEFAULT 0,
-    "follows" INTEGER NOT NULL DEFAULT 0,
-    "tries" INTEGER NOT NULL DEFAULT 0,
-    "surveyResponses" INTEGER NOT NULL DEFAULT 0,
     "outboundClicks" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "project_stat_daily_pkey" PRIMARY KEY ("projectId","day")
@@ -379,10 +375,19 @@ CREATE INDEX "github_repo_snapshot_pushedAt_idx" ON "github_repo_snapshot"("push
 CREATE INDEX "project_like_userId_idx" ON "project_like"("userId");
 
 -- CreateIndex
+CREATE INDEX "project_like_createdAt_idx" ON "project_like"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "project_follow_userId_idx" ON "project_follow"("userId");
 
 -- CreateIndex
+CREATE INDEX "project_follow_createdAt_idx" ON "project_follow"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "project_try_userId_idx" ON "project_try"("userId");
+
+-- CreateIndex
+CREATE INDEX "project_try_createdAt_idx" ON "project_try"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "project_stat_daily_day_idx" ON "project_stat_daily"("day");
