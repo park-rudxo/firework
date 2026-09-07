@@ -1,0 +1,585 @@
+// SSAFY 프로젝트 공유 플랫폼 — 데이터 모델
+//
+// 이 스키마에서 가장 중요한 결정 하나: SurveyResponse 에는 userId 가 없다.
+// 익명 설문과 응답자 추첨을 동시에 만족시키기 위해 "무엇을 썼나"(SurveyResponse)와
+// "누가 썼나"(SurveyParticipation)를 서로 참조하지 않는 두 테이블로 쪼갰다.
+// 자세한 근거는 SurveyResponse 모델 위 주석 참고.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// Better Auth 관리 테이블 (@better-auth/cli generate 산출물과 동일 구조)
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+
+  profile              Profile?
+  ownedProjects        Project[]             @relation("ProjectOwner")
+  memberships          ProjectMember[]
+  likes                ProjectLike[]
+  follows              ProjectFollow[]
+  tries                ProjectTry[]
+  createdEvents        ProjectEvent[]        @relation("EventAuthor")
+  surveyParticipations SurveyParticipation[]
+  raffleEntries        RaffleEntry[]
+  reportsFiled         Report[]              @relation("Reporter")
+  reportsResolved      Report[]              @relation("ReportResolver")
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Better Auth 는 (providerId, accountId) 에 unique 를 기대하지 않는다.
+  // 제약으로 걸면 재연결 같은 경로에서 라이브러리가 처리하는 대신 DB 에러로 터진다.
+  @@index([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 프로필
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  MEMBER
+  ADMIN
+}
+
+model Profile {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  bio         String?
+  role        UserRole @default(MEMBER)
+
+  // SSAFY 소속은 선택 입력이다. 외부인도 쓸 수 있는 서비스이므로 필수로 두지 않는다.
+  ssafyGeneration Int?
+  ssafyTrack      String?
+
+  // GitHub 계정을 연결한 사람만 프로젝트를 올릴 수 있다. 연결 시 여기에 로그인명이 채워지고,
+  // 저장소 소유권 검증에 그대로 쓰인다.
+  githubLogin String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([githubLogin])
+  @@map("profile")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 프로젝트
+// ─────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  DRAFT // 작성 중, 본인만 봄
+  PUBLISHED // 공개
+  HIDDEN // 관리자가 내림 (되돌릴 수 있음)
+  REMOVED // 관리자가 삭제
+}
+
+enum ProjectCategory {
+  WEB
+  MOBILE
+  AI
+  GAME
+  TOOL
+  EMBEDDED
+  DATA
+  ETC
+}
+
+model Project {
+  id          String          @id @default(uuid())
+  slug        String          @unique
+  name        String
+  tagline     String
+  description String // 마크다운. 렌더 시 새니타이즈 필수
+  category    ProjectCategory
+  tags        String[]        @default([])
+
+  repoUrl     String // https://github.com/{owner}/{repo} 형태만 허용
+  demoUrl     String?
+  iconUrl     String?
+  screenshots String[] @default([])
+
+  ownerId String
+  owner   User   @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // 업로더의 GitHub 계정이 저장소 owner/collaborator 인지 확인된 경우 true.
+  // 조직 저장소 등은 미확인이어도 등록은 되게 하고 배지로만 구분한다.
+  ownershipVerified Boolean @default(false)
+
+  status      ProjectStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  members  ProjectMember[]
+  snapshot GithubRepoSnapshot?
+  likes    ProjectLike[]
+  follows  ProjectFollow[]
+  tries    ProjectTry[]
+  stats    ProjectStatDaily[]
+  events   ProjectEvent[]
+  surveys  Survey[]
+  raffles  Raffle[]
+  featured FeaturedSlot[]
+
+  @@index([status, publishedAt])
+  @@index([category, status])
+  @@index([ownerId])
+}
+
+enum ProjectMemberRole {
+  OWNER
+  MAINTAINER
+  CONTRIBUTOR
+}
+
+model ProjectMember {
+  id        String            @id @default(uuid())
+  projectId String
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectMemberRole @default(CONTRIBUTOR)
+  createdAt DateTime          @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_member")
+}
+
+/// GitHub REST API 응답 캐시. 페이지 요청마다 GitHub 를 때리지 않기 위해 존재한다.
+/// fetchedAt 기준 TTL 6시간으로 갱신하고, pushedAt 은 홈의 "최근 업데이트" 정렬 기준으로도 쓴다.
+model GithubRepoSnapshot {
+  projectId String  @id
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  owner           String
+  repo            String
+  description     String?
+  stars           Int       @default(0)
+  forks           Int       @default(0)
+  openIssues      Int       @default(0)
+  primaryLanguage String?
+  languages       Json      @default("{}")
+  license         String?
+  topics          String[]  @default([])
+  archived        Boolean   @default(false)
+  pushedAt        DateTime?
+
+  /// GitHub 가 렌더해준 README HTML. 남의 저장소에서 온 신뢰 불가 콘텐츠이므로
+  /// 저장 시점이 아니라 렌더 시점에 rehype-sanitize 를 반드시 통과시킨다.
+  readmeHtml String?
+
+  fetchedAt DateTime @default(now())
+
+  @@index([pushedAt])
+  @@map("github_repo_snapshot")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 반응 지표
+// ─────────────────────────────────────────────────────────────
+
+model ProjectLike {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("project_like")
+}
+
+/// 관심 등록. 이 프로젝트의 일정이 내 캘린더에 뜨는 기준이 된다.
+model ProjectFollow {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("project_follow")
+}
+
+/// "써봤어요". 설문 응답 자격과는 무관하지만 인기 점수에서 가중치가 높다.
+model ProjectTry {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("project_try")
+}
+
+/// 일별 롤업. 배치 없이 발생 시점에 증분한다.
+///
+/// **되돌릴 수 없는 지표만 담는다.** 좋아요·관심등록·써봤어요를 여기에 누적하면
+/// 껐다 켜기를 반복해 점수를 무한히 부풀릴 수 있다. 그 셋은 피벗 테이블에
+/// 정확한 현재 상태가 있으므로 createdAt 으로 직접 센다.
+///
+/// 설문 응답 수는 여기 있다. 응답은 취소할 수 없어 부풀릴 수 없고, 무엇보다
+/// SurveyResponse 에는 시간 정보를 두지 않기로 했기 때문에 기간별 집계를 낼
+/// 곳이 여기뿐이다. 이 카운터는 개인과 연결되지 않는 합계라서 익명성을 해치지 않는다.
+model ProjectStatDaily {
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  day       DateTime @db.Date
+
+  views           Int @default(0)
+  outboundClicks  Int @default(0)
+  surveyResponses Int @default(0)
+
+  @@id([projectId, day])
+  @@index([day])
+  @@map("project_stat_daily")
+}
+
+/// 운영자가 직접 고르는 큐레이션 자리. 홈 최상단 "에디터 추천"에 노출된다.
+model FeaturedSlot {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  headline  String?
+  startsAt  DateTime
+  endsAt    DateTime
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([startsAt, endsAt])
+  @@map("featured_slot")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 일정 (사이트 내부 캘린더 전용 — 외부 캘린더 구독 피드는 만들지 않는다)
+// ─────────────────────────────────────────────────────────────
+
+enum ProjectEventType {
+  TEST // 베타 테스트 모집·진행
+  UPDATE // 업데이트 배포
+  SURVEY // 설문 진행 (설문 개설 시 자동 생성)
+  RELEASE // 정식 출시
+  RAFFLE // 추첨 마감·발표 (추첨 개설 시 자동 생성)
+  MILESTONE
+  OTHER
+}
+
+model ProjectEvent {
+  id          String           @id @default(uuid())
+  projectId   String
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        ProjectEventType
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  allDay      Boolean          @default(false)
+  url         String?
+
+  createdById String?
+  createdBy   User?   @relation("EventAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// 설문·추첨에서 자동 생성된 일정은 원본 식별자를 남겨 중복 생성과 고아 일정을 막는다.
+  autoSourceType String?
+  autoSourceId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([autoSourceType, autoSourceId])
+  @@index([startsAt])
+  @@index([projectId, startsAt])
+  @@map("project_event")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 설문 — 익명성 보장 구조
+// ─────────────────────────────────────────────────────────────
+
+model Survey {
+  id          String    @id @default(uuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  /// [{ id, type: 'rating'|'choice'|'text', label, required, options?, max? }]
+  questions   Json
+  isOpen      Boolean   @default(true)
+  opensAt     DateTime  @default(now())
+  closesAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  responses      SurveyResponse[]
+  participations SurveyParticipation[]
+  raffles        Raffle[]
+
+  @@index([projectId])
+  @@index([isOpen])
+}
+
+/// 설문 응답 내용.
+///
+/// **이 모델에는 userId 가 없고, 앞으로도 추가하면 안 된다.** 제작자에게 익명으로 전달한다는
+/// 약속의 근거가 스키마 그 자체이기 때문이다. 운영자가 DB 에 직접 접근하더라도 응답과 사용자를
+/// 엮을 수 없어야 한다.
+///
+/// 재식별 경로를 막기 위한 두 가지 추가 조치:
+///  - id 는 순번이 아니라 UUID 다. 제출 순서를 추론할 수 없다.
+///  - **시간 정보를 아예 담지 않는다.** 처음에는 날짜만 남겼는데, 하루 응답이 한 건뿐인
+///    날이면 그 날짜만으로 SurveyParticipation.createdAt 과 1:1 로 붙어버린다.
+///    소규모 사용자층에서는 그런 날이 흔하다. 그래서 날짜조차 두지 않는다.
+///    기간별 집계가 필요한 곳(홈의 주간 인기)은 개인과 무관한
+///    ProjectStatDaily.surveyResponses 카운터를 쓴다.
+model SurveyResponse {
+  id       String @id @default(uuid())
+  surveyId String
+  survey   Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  /// { [questionId]: number | string | string[] }
+  answers Json
+
+  @@index([surveyId])
+  @@map("survey_response")
+}
+
+/// "이 사람이 이 설문에 응답했다"는 사실만 남긴다. 응답 내용은 여기에 없다.
+/// 중복 응답 차단과 추첨 응모 자격 판정에만 쓰인다.
+model SurveyParticipation {
+  surveyId  String
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([surveyId, userId])
+  @@index([userId])
+  @@map("survey_participation")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 추첨 — commit–reveal 로 사후 검증 가능하게
+// ─────────────────────────────────────────────────────────────
+
+enum RaffleStatus {
+  OPEN
+  CLOSED // 마감됐지만 아직 추첨 전
+  DRAWN
+  CANCELLED
+}
+
+model Raffle {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  surveyId  String
+  survey    Survey  @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  prizeName        String
+  prizeDescription String?
+  winnerCount      Int     @default(1)
+
+  opensAt  DateTime @default(now())
+  closesAt DateTime
+
+  /// 개설 시점에 공개하는 커밋값 = sha256(seed).
+  seedHash String
+  /// 추첨 전까지 비공개. 추첨 후 공개되어 누구나 당첨자를 재계산할 수 있다.
+  seed     String?
+
+  status  RaffleStatus @default(OPEN)
+  drawnAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries RaffleEntry[]
+  winners RaffleWinner[]
+
+  @@index([projectId])
+  @@index([status, closesAt])
+}
+
+model RaffleEntry {
+  id       String @id @default(uuid())
+  raffleId String
+  raffle   Raffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 추첨 계산과 공개 검증의 단위. 사용자 식별자 대신 이 값이 공개된다.
+  ticketCode String @unique
+
+  createdAt DateTime @default(now())
+
+  winner RaffleWinner?
+
+  @@unique([raffleId, userId])
+  @@index([raffleId])
+  @@map("raffle_entry")
+}
+
+enum ClaimStatus {
+  PENDING // 당첨자가 아직 연락처를 안 냄
+  SUBMITTED // 연락처 제출됨
+  DELIVERED // 경품 지급 완료
+  FORFEITED // 기한 내 미수령
+}
+
+model RaffleWinner {
+  id       String      @id @default(uuid())
+  raffleId String
+  raffle   Raffle      @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  entryId  String      @unique
+  entry    RaffleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  rank     Int
+
+  /// 당첨자가 직접 제출한다. 제작자만 열람할 수 있다.
+  contactInfo String?
+  claimStatus ClaimStatus @default(PENDING)
+
+  announcedAt DateTime @default(now())
+
+  @@index([raffleId])
+  @@map("raffle_winner")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 신고
+//
+// 자동 숨김은 의도적으로 없다. 신고 N건으로 프로젝트가 내려간다면 경쟁 프로젝트를
+// 신고 몇 번으로 죽일 수 있고, 오신고 한 번에 멀쩡한 프로젝트가 사라진다.
+// 신고는 관리자 큐에 쌓이고, severity 는 알림 세기와 정렬 순서만 결정한다.
+// 숨김·삭제는 언제나 관리자의 수동 판단이다.
+// ─────────────────────────────────────────────────────────────
+
+enum ReportTargetType {
+  PROJECT
+  PROJECT_EVENT
+  SURVEY_RESPONSE
+  USER
+}
+
+enum ReportReason {
+  MALWARE // 악성코드·바이러스·피싱
+  DATA_HARVESTING // 과도한 개인정보 수집·자격증명 요구
+  IMPERSONATION // 타인·기업 사칭
+  COMMERCIAL_SALE // 외부 상업 판매·결제 유도·광고
+  COPYRIGHT // 코드·에셋 도용, 라이선스 위반
+  INAPPROPRIATE // 음란·폭력·혐오
+  RAFFLE_FRAUD // 추첨 조작·경품 미지급
+  SPAM // 도배·중복 등록
+  BROKEN_LINK // 링크 깨짐·동작 불가 (제보성)
+  OTHER
+}
+
+enum ReportSeverity {
+  CRITICAL // 관리자 즉시 알림 + 큐 최상단
+  HIGH // 큐 상단, 일일 요약
+  NORMAL // 일반 큐
+  INFO // 관리자 큐를 거치지 않고 제작자에게만 전달
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  ACTION_TAKEN // 관리자가 숨김/삭제 조치함
+  REJECTED // 반려
+}
+
+model Report {
+  id         String           @id @default(uuid())
+  targetType ReportTargetType
+  targetId   String
+  reason     ReportReason
+  severity   ReportSeverity
+  detail     String?
+
+  reporterId String
+  reporter   User   @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  status         ReportStatus @default(OPEN)
+  resolvedById   String?
+  resolvedBy     User?        @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  createdAt DateTime @default(now())
+
+  /// 같은 사람이 같은 대상을 반복 신고해 큐를 부풀리는 것을 막는다.
+  @@unique([targetType, targetId, reporterId])
+  @@index([status, severity, createdAt])
+  @@index([targetType, targetId])
+  @@map("report")
+}

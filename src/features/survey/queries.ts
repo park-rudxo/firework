@@ -1,0 +1,158 @@
+import "server-only";
+
+import { db } from "@/lib/db";
+import { canRevealIndividualResponses } from "@/features/survey/anonymity";
+import { questionSchema, type Question } from "@/features/survey/schema";
+
+export async function getOpenSurvey(projectId: string) {
+  const now = new Date();
+  const survey = await db.survey.findFirst({
+    where: {
+      projectId,
+      isOpen: true,
+      opensAt: { lte: now },
+      OR: [{ closesAt: null }, { closesAt: { gte: now } }],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!survey) return null;
+
+  const questions = questionSchema.array().safeParse(survey.questions);
+  return questions.success ? { ...survey, questions: questions.data } : null;
+}
+
+/** 이 사람이 이미 응답했는지. 응답 "내용"은 조회하지 않는다 — 조회할 방법도 없다. */
+export async function hasResponded(surveyId: string, userId: string | undefined) {
+  if (!userId) return false;
+  const row = await db.surveyParticipation.findUnique({
+    where: { surveyId_userId: { surveyId, userId } },
+    select: { createdAt: true },
+  });
+  return Boolean(row);
+}
+
+export type RatingSummary = {
+  questionId: string;
+  label: string;
+  average: number;
+  max: number;
+  distribution: number[];
+};
+
+export type ChoiceSummary = {
+  questionId: string;
+  label: string;
+  counts: { option: string; count: number }[];
+};
+
+export type TextResponses = { questionId: string; label: string; answers: string[] };
+
+export type SurveyResults = {
+  surveyId: string;
+  title: string;
+  responseCount: number;
+  /** 응답이 적으면 개별 응답을 감춘다. 내용이 곧 작성자를 가리키기 때문이다. */
+  individualRevealed: boolean;
+  ratings: RatingSummary[];
+  choices: ChoiceSummary[];
+  texts: TextResponses[];
+};
+
+/**
+ * 제작자에게 보여줄 결과.
+ *
+ * 응답 행에는 애초에 작성자 정보가 없으므로 여기서 지울 것도 없다.
+ * 대신 응답 수가 적을 때 개별 자유서술을 감추는 것이 이 함수의 역할이다.
+ */
+export async function getSurveyResults(surveyId: string): Promise<SurveyResults | null> {
+  const survey = await db.survey.findUnique({
+    where: { id: surveyId },
+    select: { id: true, title: true, questions: true },
+  });
+  if (!survey) return null;
+
+  const parsedQuestions = questionSchema.array().safeParse(survey.questions);
+  if (!parsedQuestions.success) return null;
+  const questions: Question[] = parsedQuestions.data;
+
+  // 응답 행에는 시간도 순번도 없다. 돌아오는 순서에 의미가 없으므로 그대로 쓴다.
+  const responses = await db.surveyResponse.findMany({
+    where: { surveyId },
+    select: { answers: true },
+  });
+
+  const responseCount = responses.length;
+  const individualRevealed = canRevealIndividualResponses(responseCount);
+  const answerRows = responses.map((r) => r.answers as Record<string, unknown>);
+
+  const ratings: RatingSummary[] = [];
+  const choices: ChoiceSummary[] = [];
+  const texts: TextResponses[] = [];
+
+  for (const q of questions) {
+    switch (q.type) {
+      case "rating": {
+        const values = answerRows
+          .map((a) => a[q.id])
+          .filter((v): v is number => typeof v === "number");
+        const distribution = Array.from({ length: q.max }, (_, i) =>
+          values.filter((v) => v === i + 1).length,
+        );
+        ratings.push({
+          questionId: q.id,
+          label: q.label,
+          average: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0,
+          max: q.max,
+          distribution,
+        });
+        break;
+      }
+      case "choice": {
+        const counts = q.options.map((option) => ({
+          option,
+          count: answerRows.filter((a) => {
+            const v = a[q.id];
+            return Array.isArray(v) ? v.includes(option) : v === option;
+          }).length,
+        }));
+        choices.push({ questionId: q.id, label: q.label, counts });
+        break;
+      }
+      case "text": {
+        const answers = individualRevealed
+          ? answerRows
+              .map((a) => a[q.id])
+              .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+          : [];
+        texts.push({ questionId: q.id, label: q.label, answers });
+        break;
+      }
+    }
+  }
+
+  return {
+    surveyId: survey.id,
+    title: survey.title,
+    responseCount,
+    individualRevealed,
+    ratings,
+    choices,
+    texts,
+  };
+}
+
+export async function listProjectSurveys(projectId: string) {
+  return db.survey.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      isOpen: true,
+      closesAt: true,
+      createdAt: true,
+      _count: { select: { responses: true } },
+      raffles: { select: { id: true, status: true, prizeName: true } },
+    },
+  });
+}

@@ -1,0 +1,24 @@
+# 로컬 개발용 PostgreSQL 18.
+#   docker compose up -d
+#   npm run db:migrate
+services:
+  postgres:
+    image: postgres:18
+    container_name: firework-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: firework
+      POSTGRES_PASSWORD: firework
+      POSTGRES_DB: firework
+    ports:
+      - "5432:5432"
+    volumes:
+      - firework-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firework -d firework"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  firework-pgdata:
