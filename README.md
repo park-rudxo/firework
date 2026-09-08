@@ -172,12 +172,56 @@ npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`
 설문 응답·추첨 응모·프로젝트 등록처럼 로그인이 필요한 화면을 보려면 소셜 프로바이더를
 최소 하나 설정해야 한다. 가장 빠른 건 GitHub 이다(업로더 인증에도 어차피 필요하다).
 
-1. https://github.com/settings/developers → **New OAuth App**
-2. Homepage URL `http://localhost:3000`
-3. Authorization callback URL `http://localhost:3000/api/auth/callback/github`
-4. 발급된 Client ID / Secret 을 `.env` 의 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 에 넣는다
+### 소셜 로그인 켜기
 
-다른 프로바이더의 콜백 URL도 형태는 같다 — `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
+버튼은 **자격증명이 채워진 프로바이더만** 뜬다. 카카오가 안 보인다면 코드 문제가 아니라
+`KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` 이 비어 있는 것이다. 개발 모드에서는 로그인
+화면에 "아직 켜지지 않은 로그인" 안내가 함께 뜨고, `npm run doctor` 는 넷 다 상태와
+켜는 절차를 출력한다.
+
+콜백 URL 은 모두 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 형태다.
+
+| | 콘솔 | 놓치기 쉬운 것 |
+|---|---|---|
+| **GitHub** | [Developer settings](https://github.com/settings/developers) → New OAuth App | Authorization callback URL 하나만 맞추면 끝난다. `GITHUB_TOKEN` 과는 다른 값이다. |
+| **Google** | [사용자 인증 정보](https://console.cloud.google.com/apis/credentials) | OAuth 동의 화면을 **먼저** 구성해야 클라이언트를 만들 수 있다. 게시 상태가 "테스트" 면 테스트 사용자에 넣은 계정만 로그인된다. |
+| **네이버** | [애플리케이션 등록](https://developers.naver.com/apps/#/register) | 제공 정보에 **이메일 주소**를 체크해야 한다. 검수 전에는 개발자 본인과 콘솔 멤버로 등록한 계정만 로그인된다. |
+| **카카오** | [내 애플리케이션](https://developers.kakao.com/console/app) | ID 는 **REST API 키**다. Client Secret 은 기본이 '사용 안 함' 이라 직접 켜야 하고, 동의항목에서 **카카오계정(이메일)** 을 켜지 않으면 가입이 `email_not_found` 로 실패한다. |
+
+동의 항목이나 콜백을 고친 뒤에는 프로바이더 쪽 기존 동의를 한 번 해제하고 다시
+로그인해야 새 항목을 물어본다. `.env` 를 고친 뒤에는 개발 서버를 다시 시작해야 한다.
+
+**`redirect_uri_mismatch` (구글 400 오류)** 는 자격증명이 아니라 콜백 주소 문제다.
+Better Auth 는 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 를 그대로 보내므로,
+그 문자열이 콘솔에 **글자 그대로** 있어야 한다.
+
+구글은 `npm run doctor` 가 **직접 물어봐서** 등록 여부를 알려준다 — 인가
+엔드포인트는 공개 GET 이고 client_id 는 인가 요청에 그대로 실려 나가는 공개
+값이라 시크릿 없이 확인된다. 브라우저를 열기 전에 답이 나온다.
+
+```
+  ✓ Google — 자격증명 있음
+      콜백: http://localhost:3000/api/auth/callback/google
+      GOOGLE_CLIENT_ID: 21047...apps.googleusercontent.com
+  ✗   ↳ Google 에 이 콜백이 등록돼 있지 않습니다
+```
+
+카카오·네이버·GitHub 은 이 확인을 하지 않는다. 응답 신호를 실제로 확인한 것이
+구글뿐이고, 검증하지 않은 판별기는 틀린 확신을 주기 때문이다.
+
+자주 어긋나는 곳:
+
+- 구글 콘솔의 **승인된 JavaScript 원본**에 넣고 **승인된 리디렉션 URI** 칸은 비워둔 경우
+- 끝에 붙은 `/`, `http`/`https`, `localhost` 와 `127.0.0.1`
+- **다른 클라이언트에 등록한 경우.** 오류 화면의 `redirect_uri=` 가 위 주소와 똑같은데도
+  막힌다면 대개 이것이다. `npm run doctor` 가 `.env` 에 든 `GOOGLE_CLIENT_ID` 를 찍어주므로,
+  콘솔 목록에서 **그 ID 와 같은 항목**을 열어 거기에 등록했는지 확인한다.
+- **클라이언트 유형이 "웹 애플리케이션" 이 아닌 경우.** 데스크톱 앱 등으로 만들면
+  승인된 리디렉션 URI 칸 자체가 없다. 웹 애플리케이션으로 새로 만들어야 한다.
+- 저장 직후 — 구글은 반영에 몇 분 걸릴 때가 있다
+
+로그인이 실패하면 `/sign-in/error` 가 Better Auth 의 에러 코드를 무엇이 어긋났을 때
+나오는 것인지로 풀어서 보여준다.
 
 `ADMIN_EMAILS` 에 적힌 이메일로 로그인하면 관리자가 된다. 단 **이메일이 검증된 계정**
 (Google·GitHub)이어야 승격된다. 비워두면 신고 큐를 열 수 있는 사람이 아무도 없다.

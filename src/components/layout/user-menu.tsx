@@ -7,20 +7,23 @@ import { LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon } from "lu
 
 import { SignInMenu } from "@/components/auth/sign-in-menu";
 import { signOut } from "@/lib/auth-client";
-import type { ProviderId } from "@/lib/env";
+import type { ProviderId } from "@/lib/providers";
 import type { Viewer } from "@/lib/session";
 
 export function UserMenu({
   viewer,
   providers,
+  missing = [],
 }: {
   viewer: Viewer | null;
   providers: ProviderId[];
+  /** 자격증명이 없어 뜨지 않는 프로바이더. 개발 환경에서만 채워 보낸다. */
+  missing?: ProviderId[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  if (!viewer) return <SignInMenu providers={providers} />;
+  if (!viewer) return <SignInMenu providers={providers} missing={missing} />;
 
   return (
     <div className="relative flex items-center gap-2">

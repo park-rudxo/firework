@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { CalendarDays, Compass, Sparkles } from "lucide-react";
 
-import { configuredProviders, serverEnv, type ProviderId } from "@/lib/env";
+import { enabledProviders, serverEnv } from "@/lib/env";
+import { PROVIDER_ORDER } from "@/lib/providers";
 import { getViewer } from "@/lib/session";
 import { NotificationBell } from "@/components/notification/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -14,8 +15,12 @@ const nav = [
 export async function SiteHeader() {
   const viewer = await getViewer();
 
-  const configured = configuredProviders(serverEnv());
-  const providers = (Object.keys(configured) as ProviderId[]).filter((p) => configured[p]);
+  const providers = enabledProviders(serverEnv());
+  // 안 켜진 프로바이더를 어떻게 켜는지는 만드는 사람에게만 보여준다.
+  const missing =
+    process.env.NODE_ENV === "production"
+      ? []
+      : PROVIDER_ORDER.filter((p) => !providers.includes(p));
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
@@ -40,7 +45,7 @@ export async function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-1">
           {viewer ? <NotificationBell userId={viewer.id} /> : null}
-          <UserMenu viewer={viewer} providers={providers} />
+          <UserMenu viewer={viewer} providers={providers} missing={missing} />
         </div>
       </div>
     </header>

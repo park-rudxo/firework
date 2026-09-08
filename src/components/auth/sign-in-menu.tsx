@@ -5,17 +5,13 @@ import { useState } from "react";
 
 import { GithubMark } from "@/components/icons/github-mark";
 import { signIn } from "@/lib/auth-client";
-import type { ProviderId } from "@/lib/env";
-
-const meta: Record<ProviderId, { label: string; className: string }> = {
-  kakao: { label: "카카오", className: "bg-[#FEE500] text-[#191600] hover:brightness-95" },
-  naver: { label: "네이버", className: "bg-[#03C75A] text-white hover:brightness-95" },
-  google: { label: "Google", className: "border border-border bg-surface hover:bg-surface-muted" },
-  github: { label: "GitHub", className: "bg-[#24292f] text-white hover:brightness-125" },
-};
-
-// 국내 사용자 비중을 생각해 카카오·네이버를 위로 올린다.
-const order: ProviderId[] = ["kakao", "naver", "google", "github"];
+import {
+  PROVIDER_BUTTON_CLASS,
+  PROVIDER_LABEL,
+  PROVIDER_ORDER,
+  type ProviderId,
+} from "@/lib/providers";
+import { ProviderSetupHint } from "@/components/auth/provider-setup-hint";
 
 /**
  * 오른쪽 위에서 바로 로그인한다.
@@ -24,12 +20,19 @@ const order: ProviderId[] = ["kakao", "naver", "google", "github"];
  * 프로바이더가 하나도 설정되지 않았으면 그 사실을 여기서 알려준다 — 버튼만 없으면
  * 왜 로그인이 안 되는지 알 길이 없다.
  */
-export function SignInMenu({ providers }: { providers: ProviderId[] }) {
+export function SignInMenu({
+  providers,
+  missing = [],
+}: {
+  providers: ProviderId[];
+  /** 자격증명이 없어 뜨지 않는 프로바이더. 개발 환경에서만 채워 보낸다. */
+  missing?: ProviderId[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<ProviderId | null>(null);
 
-  const available = order.filter((p) => providers.includes(p));
+  const available = PROVIDER_ORDER.filter((p) => providers.includes(p));
 
   return (
     <div className="relative">
@@ -48,7 +51,7 @@ export function SignInMenu({ providers }: { providers: ProviderId[] }) {
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
           <div
             role="menu"
-            className="absolute right-0 top-10 z-20 w-64 rounded-xl border border-border bg-surface p-3 shadow-lg"
+            className="absolute right-0 top-10 z-20 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-border bg-surface p-3 shadow-lg"
           >
             {available.length === 0 ? (
               <p className="p-1 text-xs text-muted-foreground">
@@ -80,15 +83,17 @@ export function SignInMenu({ providers }: { providers: ProviderId[] }) {
                           router.refresh();
                         }
                       }}
-                      className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 ${meta[provider].className}`}
+                      className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 ${PROVIDER_BUTTON_CLASS[provider]}`}
                     >
                       {provider === "github" ? <GithubMark className="size-4" /> : null}
-                      {pending === provider ? "이동 중…" : meta[provider].label}
+                      {pending === provider ? "이동 중…" : PROVIDER_LABEL[provider]}
                     </button>
                   ))}
                 </div>
               </>
             )}
+
+            {missing.length > 0 ? <ProviderSetupHint missing={missing} /> : null}
           </div>
         </>
       ) : null}
