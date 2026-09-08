@@ -64,11 +64,26 @@ export const projectInputSchema = z.object({
     .array(z.string().trim().min(1).max(20))
     .max(8, "태그는 최대 8개까지입니다.")
     .default([]),
-  repoUrl,
+  /**
+   * 저장소는 선택이다. 공개 저장소가 없는 프로젝트도 공유할 만한 결과물이다 —
+   * 배포된 웹서비스, 스토어에 올라간 앱, 사내 코드로 만든 것.
+   */
+  repoUrl: z
+    .union([repoUrl, z.literal("")])
+    .transform((v) => (v === "" ? null : v))
+    .nullable(),
   demoUrl: optionalHttpsUrl,
   iconUrl: optionalHttpsUrl,
   screenshots: z.array(httpsUrl).max(6, "스크린샷은 최대 6장까지입니다.").default([]),
-});
+})
+  /**
+   * 둘 다 비면 방문자가 이 프로젝트를 써볼 방법이 없다. 써보고 피드백을 남기는
+   * 것이 이 서비스의 전부이므로, 최소한 한쪽은 있어야 등록을 받는다.
+   */
+  .refine((v) => Boolean(v.repoUrl) || Boolean(v.demoUrl), {
+    path: ["repoUrl"],
+    message: "저장소 주소나 서비스 주소 중 최소 하나는 넣어주세요.",
+  });
 
 export type ProjectInput = z.infer<typeof projectInputSchema>;
 

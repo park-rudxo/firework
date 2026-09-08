@@ -92,7 +92,8 @@ export default async function ProjectDetailPage({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold">{project.name}</h1>
-            {project.ownershipVerified ? (
+            {/* 저장소가 없는 프로젝트에는 소유 확인이라는 개념 자체가 없다. 배지를 아예 빼둔다. */}
+            {!project.repoUrl ? null : project.ownershipVerified ? (
               <span className="flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-xs text-success">
                 <BadgeCheck className="size-3.5" aria-hidden />
                 저장소 소유 확인
@@ -130,15 +131,22 @@ export default async function ProjectDetailPage({
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <ExternalLinkButton href={project.repoUrl} projectId={project.id} primary>
-          <GithubMark className="size-4" />
-          GitHub
-        </ExternalLinkButton>
+        {/* 저장소가 없으면 서비스 주소가 이 프로젝트의 대문이다. 그때는 그쪽을 앞세운다. */}
+        {project.repoUrl ? (
+          <ExternalLinkButton href={project.repoUrl} projectId={project.id} primary>
+            <GithubMark className="size-4" />
+            GitHub
+          </ExternalLinkButton>
+        ) : null}
 
         {project.demoUrl ? (
-          <ExternalLinkButton href={project.demoUrl} projectId={project.id}>
+          <ExternalLinkButton
+            href={project.demoUrl}
+            projectId={project.id}
+            primary={!project.repoUrl}
+          >
             <ExternalLink className="size-4" aria-hidden />
-            데모 열기
+            바로 써보기
           </ExternalLinkButton>
         ) : null}
 

@@ -13,7 +13,7 @@ export type ProjectFormValues = {
   description: string;
   category: string;
   tags: string[];
-  repoUrl: string;
+  repoUrl: string | null;
   demoUrl: string | null;
   iconUrl: string | null;
   screenshots: string[];
@@ -27,7 +27,8 @@ export function ProjectForm({
 }: {
   mode: "create" | "edit";
   slug?: string;
-  githubLogin: string;
+  /** GitHub 계정을 연결하지 않았으면 null. 저장소 칸의 안내가 달라진다. */
+  githubLogin: string | null;
   values?: ProjectFormValues;
 }) {
   const action =
@@ -49,10 +50,13 @@ export function ProjectForm({
       <Field
         label="GitHub 저장소"
         name="repoUrl"
-        required
-        defaultValue={values?.repoUrl}
-        placeholder={`https://github.com/${githubLogin}/my-project`}
-        hint="스타·언어·README 를 여기서 가져옵니다. 공개 저장소여야 합니다."
+        defaultValue={values?.repoUrl ?? ""}
+        placeholder={`https://github.com/${githubLogin ?? "my-name"}/my-project`}
+        hint={
+          githubLogin
+            ? "선택입니다. 넣으면 스타·언어·README 를 가져오고 소유 확인 배지가 붙습니다. 공개 저장소여야 합니다."
+            : "선택입니다. 저장소를 넣으려면 위에서 GitHub 계정을 먼저 연결해주세요."
+        }
         errors={state.fieldErrors?.repoUrl}
       />
 
@@ -110,11 +114,11 @@ export function ProjectForm({
       </label>
 
       <Field
-        label="데모 주소"
+        label="서비스 주소"
         name="demoUrl"
         defaultValue={values?.demoUrl ?? ""}
         placeholder="https://my-project.vercel.app"
-        hint="https 만 가능합니다. 방문자에게는 외부 링크 경고가 함께 표시됩니다."
+        hint="배포된 웹사이트, 앱스토어·구글플레이 링크, 데모 무엇이든 됩니다. 저장소를 넣지 않았다면 이 주소가 필요합니다. https 만 가능합니다."
         errors={state.fieldErrors?.demoUrl}
       />
 
@@ -148,7 +152,7 @@ export function ProjectForm({
       >
         {pending
           ? mode === "create"
-            ? "GitHub 에서 정보를 가져오는 중…"
+            ? "등록하는 중…"
             : "저장 중…"
           : mode === "create"
             ? "등록하기"

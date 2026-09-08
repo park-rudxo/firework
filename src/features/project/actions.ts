@@ -12,7 +12,7 @@ import {
   SNAPSHOT_TTL_MS,
   verifyOwnership,
 } from "@/lib/github";
-import { requireGithubLinkedViewer, requireViewer } from "@/lib/session";
+import { requireVerifiedViewer, requireViewer } from "@/lib/session";
 import {
   projectInputFromFormData,
   projectInputSchema,
@@ -34,12 +34,16 @@ async function uniqueSlug(name: string): Promise<string> {
   return `${base}-${Date.now().toString(36)}`;
 }
 
+/** GitHub 계정을 연결하지 않은 사람이 저장소를 붙이려 할 때의 안내. */
+const NEED_GITHUB =
+  "GitHub 저장소를 등록하려면 GitHub 계정 연결이 필요합니다. 설정에서 연결하시거나, 저장소 없이 서비스 주소만으로 등록하실 수 있습니다.";
+
 export async function createProject(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
   // UI 에서 게이트를 걸어두더라도 Server Action 은 직접 호출될 수 있다. 방어는 여기서 한다.
-  const viewer = await requireGithubLinkedViewer();
+  const viewer = await requireVerifiedViewer();
 
   const parsed = projectInputSchema.safeParse(projectInputFromFormData(form));
   if (!parsed.success) {
@@ -50,25 +54,31 @@ export async function createProject(
   }
   const input = parsed.data;
 
-  const ref = parseRepoUrl(input.repoUrl)!;
+  // 저장소가 없는 프로젝트도 등록된다. 그때는 GitHub 관련 절차를 전부 건너뛴다.
+  const ref = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
+  if (ref && !viewer.githubLogin) return { error: NEED_GITHUB };
 
-  const existing = await db.project.findFirst({
-    where: { repoUrl: canonicalRepoUrl(ref), status: { not: "REMOVED" } },
-    select: { slug: true },
-  });
-  if (existing) {
-    return { error: "이미 등록된 저장소입니다." };
+  let snapshot: Awaited<ReturnType<typeof fetchRepoSnapshot>> | null = null;
+  let ownershipVerified = false;
+
+  if (ref) {
+    const existing = await db.project.findFirst({
+      where: { repoUrl: canonicalRepoUrl(ref), status: { not: "REMOVED" } },
+      select: { slug: true },
+    });
+    if (existing) {
+      return { error: "이미 등록된 저장소입니다." };
+    }
+
+    try {
+      snapshot = await fetchRepoSnapshot(ref);
+    } catch (err) {
+      if (err instanceof GithubError) return { error: err.message };
+      throw err;
+    }
+
+    ownershipVerified = await verifyOwnership(ref, viewer.githubLogin!).catch(() => false);
   }
-
-  let snapshot;
-  try {
-    snapshot = await fetchRepoSnapshot(ref);
-  } catch (err) {
-    if (err instanceof GithubError) return { error: err.message };
-    throw err;
-  }
-
-  const ownershipVerified = await verifyOwnership(ref, viewer.githubLogin).catch(() => false);
 
   const slug = await uniqueSlug(input.name);
 
@@ -80,7 +90,7 @@ export async function createProject(
       description: input.description,
       category: input.category,
       tags: input.tags,
-      repoUrl: canonicalRepoUrl(ref),
+      repoUrl: ref ? canonicalRepoUrl(ref) : null,
       demoUrl: input.demoUrl,
       iconUrl: input.iconUrl,
       screenshots: input.screenshots,
@@ -90,23 +100,25 @@ export async function createProject(
       members: {
         create: { userId: viewer.id, role: "OWNER" },
       },
-      snapshot: {
-        create: {
-          owner: snapshot.owner,
-          repo: snapshot.repo,
-          description: snapshot.description,
-          stars: snapshot.stars,
-          forks: snapshot.forks,
-          openIssues: snapshot.openIssues,
-          primaryLanguage: snapshot.primaryLanguage,
-          languages: snapshot.languages,
-          license: snapshot.license,
-          topics: snapshot.topics,
-          archived: snapshot.archived,
-          pushedAt: snapshot.pushedAt,
-          readmeHtml: snapshot.readmeHtml,
-        },
-      },
+      snapshot: snapshot
+        ? {
+            create: {
+              owner: snapshot.owner,
+              repo: snapshot.repo,
+              description: snapshot.description,
+              stars: snapshot.stars,
+              forks: snapshot.forks,
+              openIssues: snapshot.openIssues,
+              primaryLanguage: snapshot.primaryLanguage,
+              languages: snapshot.languages,
+              license: snapshot.license,
+              topics: snapshot.topics,
+              archived: snapshot.archived,
+              pushedAt: snapshot.pushedAt,
+              readmeHtml: snapshot.readmeHtml,
+            },
+          }
+        : undefined,
     },
   });
 
@@ -135,8 +147,19 @@ export async function updateProject(
     };
   }
   const input = parsed.data;
-  const ref = parseRepoUrl(input.repoUrl)!;
-  const nextRepoUrl = canonicalRepoUrl(ref);
+  const ref = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
+  const nextRepoUrl = ref ? canonicalRepoUrl(ref) : null;
+  const repoChanged = nextRepoUrl !== project.repoUrl;
+
+  if (repoChanged && ref) {
+    if (!viewer.githubLogin) return { error: NEED_GITHUB };
+
+    const taken = await db.project.findFirst({
+      where: { repoUrl: nextRepoUrl, status: { not: "REMOVED" }, id: { not: project.id } },
+      select: { slug: true },
+    });
+    if (taken) return { error: "이미 등록된 저장소입니다." };
+  }
 
   await db.project.update({
     where: { id: project.id },
@@ -150,12 +173,23 @@ export async function updateProject(
       demoUrl: input.demoUrl,
       iconUrl: input.iconUrl,
       screenshots: input.screenshots,
+      // 저장소가 바뀌면 이전 저장소로 받은 확인은 근거를 잃는다. 아래에서 다시 확인한다.
+      ...(repoChanged ? { ownershipVerified: false } : {}),
     },
   });
 
-  // 저장소를 바꿨다면 스냅샷은 낡은 것이므로 즉시 다시 받는다.
-  if (nextRepoUrl !== project.repoUrl) {
-    await refreshSnapshot(project.id, nextRepoUrl, { force: true });
+  if (repoChanged) {
+    if (ref && viewer.githubLogin) {
+      // 저장소를 바꿨다면 스냅샷은 낡은 것이므로 즉시 다시 받는다.
+      await refreshSnapshot(project.id, nextRepoUrl, { force: true });
+      const verified = await verifyOwnership(ref, viewer.githubLogin).catch(() => false);
+      if (verified) {
+        await db.project.update({ where: { id: project.id }, data: { ownershipVerified: true } });
+      }
+    } else {
+      // 저장소를 떼어냈다. 스타·언어·README 를 남겨두면 없는 저장소의 정보가 계속 보인다.
+      await db.githubRepoSnapshot.deleteMany({ where: { projectId: project.id } });
+    }
   }
 
   revalidatePath(`/projects/${slug}`);
@@ -210,10 +244,11 @@ export async function unpublishProject(slug: string): Promise<ActionState> {
  */
 export async function refreshSnapshot(
   projectId: string,
-  repoUrl: string,
+  repoUrl: string | null,
   { force = false }: { force?: boolean } = {},
 ): Promise<void> {
-  const ref = parseRepoUrl(repoUrl);
+  // 저장소가 없는 프로젝트는 갱신할 것이 없다.
+  const ref = repoUrl ? parseRepoUrl(repoUrl) : null;
   if (!ref) return;
 
   if (!force) {

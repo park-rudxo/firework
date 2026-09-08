@@ -157,7 +157,14 @@ model Project {
   category    ProjectCategory
   tags        String[]        @default([])
 
-  repoUrl     String // https://github.com/{owner}/{repo} 형태만 허용
+  /// GitHub 저장소 주소. https://github.com/{owner}/{repo} 형태만 허용한다.
+  ///
+  /// 선택이다. 공유되는 프로젝트가 전부 공개 저장소를 가진 것은 아니다 —
+  /// 배포된 웹서비스, 스토어에 올라간 앱, 사내 코드로 만든 결과물도 같은 자리에 선다.
+  /// 대신 repoUrl 과 demoUrl 중 최소 하나는 있어야 한다(schema.ts 에서 강제).
+  /// 저장소가 있는 경우에만 스타·언어·README 스냅샷과 소유 확인 배지가 붙는다.
+  repoUrl     String?
+  /// 서비스 주소. 배포된 웹사이트, 스토어 링크, 데모 어느 것이든 여기 들어간다.
   demoUrl     String?
   iconUrl     String?
   screenshots String[] @default([])

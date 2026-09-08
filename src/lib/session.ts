@@ -52,20 +52,6 @@ export async function requireViewer(): Promise<Viewer> {
 }
 
 /**
- * 프로젝트를 올리려면 GitHub 계정 연결이 필수다.
- *
- * UI 에서 게이트를 걸어두더라도 Server Action 은 직접 호출될 수 있으므로
- * 실제 방어는 여기서 한다.
- */
-export async function requireGithubLinkedViewer(): Promise<Viewer & { githubLogin: string }> {
-  const viewer = await requireVerifiedViewer();
-  if (!viewer.githubLogin) {
-    throw new Error("프로젝트를 등록하려면 GitHub 계정 연결이 필요합니다.");
-  }
-  return viewer as Viewer & { githubLogin: string };
-}
-
-/**
  * 이메일 확인까지 끝난 사람만 통과시킨다.
  *
  * 설문 응답과 추첨 응모, 프로젝트 등록처럼 계정을 여러 개 만들면 이득이 생기는
