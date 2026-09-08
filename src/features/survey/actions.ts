@@ -37,12 +37,17 @@ export async function submitSurveyResponse(
   form: FormData,
 ): Promise<SurveyState> {
   // 응답 하나가 추첨 응모권 하나다. 계정을 여러 개 만들면 그대로 이득이 되므로
-  // 이메일 확인을 마친 사람만 받는다.
+  // 닉네임과 이메일 확인을 마친 사람만 받는다.
+  //
+  // 막힌 이유가 둘이라 게이트가 알려주는 말을 그대로 내보낸다. "이메일 확인이
+  // 필요합니다" 로 뭉뚱그리면 닉네임 때문에 막힌 사람이 이메일만 계속 다시 본다.
   let viewer;
   try {
     viewer = await requireVerifiedViewer();
-  } catch {
-    return { ok: false, error: "이메일 확인이 필요합니다. 오른쪽 위 메뉴에서 확인해주세요." };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "이메일 확인이 필요합니다.";
+    return { ok: false, error: `${message} 오른쪽 위 메뉴에서 확인해주세요.` };
   }
 
   const survey = await db.survey.findUnique({

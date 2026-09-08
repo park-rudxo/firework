@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isValidNickname, NICKNAME_EXAMPLE, NICKNAME_FORMAT } from "@/features/profile/nickname";
 
 export type Viewer = {
   id: string;
@@ -18,6 +19,13 @@ export type Viewer = {
    * emailVerified 를 항상 false 로 주므로 사실상 우리 인증을 한 번 거친다.
    */
   emailVerified: boolean;
+  /**
+   * 닉네임이 기수_지역_반_이름 형식을 갖췄는지.
+   *
+   * 소셜 로그인만 있어서 가입 폼이 없다. 프로바이더가 준 이름이 그대로 들어오므로
+   * 새로 가입한 사람은 항상 false 로 시작하고, 레이아웃이 /nickname 으로 보낸다.
+   */
+  nicknameSet: boolean;
 };
 
 /**
@@ -32,15 +40,18 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     select: { displayName: true, githubLogin: true, role: true },
   });
 
+  const displayName = profile?.displayName ?? session.user.name;
+
   return {
     id: session.user.id,
     name: session.user.name,
     email: session.user.email,
     image: session.user.image ?? null,
-    displayName: profile?.displayName ?? session.user.name,
+    displayName,
     githubLogin: profile?.githubLogin ?? null,
     isAdmin: profile?.role === "ADMIN",
     emailVerified: Boolean(session.user.emailVerified),
+    nicknameSet: isValidNickname(displayName),
   };
 });
 
@@ -48,6 +59,23 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 export async function requireViewer(): Promise<Viewer> {
   const viewer = await getViewer();
   if (!viewer) throw new Error("로그인이 필요합니다.");
+  return viewer;
+}
+
+/**
+ * 닉네임을 형식에 맞게 정한 사람만 통과시킨다.
+ *
+ * 화면에서는 레이아웃이 /nickname 으로 돌려보내지만, Server Action 은 라우트를
+ * 거치지 않고 직접 호출될 수 있다. 이메일 확인·GitHub 연결과 같은 자리에서
+ * 실제 방어를 한 번 더 한다.
+ */
+export async function requireNamedViewer(): Promise<Viewer> {
+  const viewer = await requireViewer();
+  if (!viewer.nicknameSet) {
+    throw new Error(
+      `닉네임을 ${NICKNAME_FORMAT} 형식으로 먼저 정해주세요. 예) ${NICKNAME_EXAMPLE}`,
+    );
+  }
   return viewer;
 }
 
@@ -72,7 +100,7 @@ export async function requireGithubLinkedViewer(): Promise<Viewer & { githubLogi
  * 곳에만 건다. 둘러보기나 좋아요까지 막으면 얻는 것 없이 진입만 막힌다.
  */
 export async function requireVerifiedViewer(): Promise<Viewer> {
-  const viewer = await requireViewer();
+  const viewer = await requireNamedViewer();
   if (!viewer.emailVerified) {
     throw new Error("이메일 확인이 필요합니다. 설정에서 인증을 마쳐주세요.");
   }

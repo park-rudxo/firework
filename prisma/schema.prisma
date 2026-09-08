@@ -107,11 +107,14 @@ enum UserRole {
 model Profile {
   userId      String   @id
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 기수_지역_반_이름 형식으로만 저장된다(src/features/profile/nickname.ts).
   displayName String
   bio         String?
   role        UserRole @default(MEMBER)
 
-  // SSAFY 소속은 선택 입력이다. 외부인도 쓸 수 있는 서비스이므로 필수로 두지 않는다.
+  // 기수는 닉네임(displayName) 첫 칸에서 그대로 따온다 — 따로 입력받지 않는다.
+  // 둘을 각각 받으면 어긋난 상태가 생기고, 어느 쪽이 맞는지 알 방법이 없다.
+  // 트랙은 여전히 선택 입력이다.
   ssafyGeneration Int?
   ssafyTrack      String?
 

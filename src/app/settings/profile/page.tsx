@@ -17,7 +17,7 @@ export default async function ProfileSettingsPage() {
   const [profile, accounts] = await Promise.all([
     db.profile.findUnique({
       where: { userId: viewer.id },
-      select: { displayName: true, bio: true, ssafyGeneration: true, ssafyTrack: true },
+      select: { displayName: true, bio: true, ssafyTrack: true },
     }),
     db.account.findMany({
       where: { userId: viewer.id },
@@ -36,7 +36,6 @@ export default async function ProfileSettingsPage() {
           values={{
             displayName: profile?.displayName ?? viewer.name,
             bio: profile?.bio ?? "",
-            ssafyGeneration: profile?.ssafyGeneration ?? null,
             ssafyTrack: profile?.ssafyTrack ?? "",
           }}
         />

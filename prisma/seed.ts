@@ -20,6 +20,16 @@ const db = new PrismaClient({
 
 const NAMES = ["김싸피", "이관통", "박특화", "최자율", "정프로", "한개발", "오테스트", "윤배포"];
 
+/**
+ * 닉네임은 기수_지역_반_이름 형식이다(src/features/profile/nickname.ts).
+ * 시드도 같은 형식을 지켜야 한다 — 안 그러면 시드 계정으로 로그인했을 때
+ * 곧바로 닉네임 게이트에 걸려 데모가 끊긴다.
+ */
+const CAMPUSES = ["서울", "대전", "광주", "구미", "부울경"];
+const generationOf = (i: number) => 12 + (i % 3);
+const nicknameOf = (name: string, i: number) =>
+  `${generationOf(i)}_${CAMPUSES[i % CAMPUSES.length]}_${(i % 8) + 1}반_${name}`;
+
 const PROJECTS = [
   {
     slug: "moamoa",
@@ -109,9 +119,9 @@ async function main() {
           emailVerified: true,
           profile: {
             create: {
-              displayName: name,
+              displayName: nicknameOf(name, i),
               githubLogin: `seed-dev-${i}`,
-              ssafyGeneration: 12 + (i % 3),
+              ssafyGeneration: generationOf(i),
               // 첫 번째 사용자는 관리자로 둔다. 신고 큐를 확인할 수 있게.
               role: i === 0 ? "ADMIN" : "MEMBER",
             },

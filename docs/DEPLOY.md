@@ -18,7 +18,11 @@
 ## 1. 데이터베이스 — Neon
 
 1. https://console.neon.tech → **New Project**
-2. 리전은 **Asia Pacific (Seoul)** 또는 가까운 곳
+2. 리전은 **AWS Asia Pacific 1 (Singapore)**.
+   Neon 에 서울 리전이 없어서 국내에서 가장 가까운 선택지다(서울↔싱가포르 약 75ms).
+   `vercel.json` 의 `regions` 도 같은 `sin1` 로 맞춰져 있다 — **둘을 같은 곳에 두는 것이
+   중요하다.** 페이지 하나를 그리는 데 쿼리가 여러 번 나가므로, 앱과 DB 가 떨어져 있으면
+   그 왕복이 매 쿼리마다 쌓인다. 앱만 서울에 두는 쪽이 오히려 느리다.
 3. **Connection string** 에서 두 개를 복사한다. 같은 화면에서 토글로 바뀐다.
 
 | | 복사할 것 | 쓰는 곳 |
