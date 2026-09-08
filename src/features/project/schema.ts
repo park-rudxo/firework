@@ -81,8 +81,9 @@ export const projectInputSchema = z.object({
    * 것이 이 서비스의 전부이므로, 최소한 한쪽은 있어야 등록을 받는다.
    */
   .refine((v) => Boolean(v.repoUrl) || Boolean(v.demoUrl), {
-    path: ["repoUrl"],
-    message: "저장소 주소나 서비스 주소 중 최소 하나는 넣어주세요.",
+    // 폼에서 위에 있는 칸에 붙인다. 저장소 칸은 한참 아래라 거기 띄우면 눈에 띄지 않는다.
+    path: ["demoUrl"],
+    message: "서비스 주소나 GitHub 저장소 주소 중 최소 하나는 넣어주세요.",
   });
 
 export type ProjectInput = z.infer<typeof projectInputSchema>;

@@ -48,24 +48,20 @@ export function ProjectForm({
       {mode === "edit" && !state.error && !pending ? null : null}
 
       <Field
-        label="GitHub 저장소"
-        name="repoUrl"
-        defaultValue={values?.repoUrl ?? ""}
-        placeholder={`https://github.com/${githubLogin ?? "my-name"}/my-project`}
-        hint={
-          githubLogin
-            ? "선택입니다. 넣으면 스타·언어·README 를 가져오고 소유 확인 배지가 붙습니다. 공개 저장소여야 합니다."
-            : "선택입니다. 저장소를 넣으려면 위에서 GitHub 계정을 먼저 연결해주세요."
-        }
-        errors={state.fieldErrors?.repoUrl}
-      />
-
-      <Field
         label="프로젝트 이름"
         name="name"
         required
         defaultValue={values?.name}
         errors={state.fieldErrors?.name}
+      />
+
+      <Field
+        label="서비스 주소"
+        name="demoUrl"
+        defaultValue={values?.demoUrl ?? ""}
+        placeholder="https://my-project.vercel.app"
+        hint="배포된 웹사이트, 앱스토어·구글플레이 링크, 데모 무엇이든 됩니다. 저장소를 넣지 않았다면 이 주소가 필요합니다. https 만 가능합니다."
+        errors={state.fieldErrors?.demoUrl}
       />
 
       <Field
@@ -114,12 +110,16 @@ export function ProjectForm({
       </label>
 
       <Field
-        label="서비스 주소"
-        name="demoUrl"
-        defaultValue={values?.demoUrl ?? ""}
-        placeholder="https://my-project.vercel.app"
-        hint="배포된 웹사이트, 앱스토어·구글플레이 링크, 데모 무엇이든 됩니다. 저장소를 넣지 않았다면 이 주소가 필요합니다. https 만 가능합니다."
-        errors={state.fieldErrors?.demoUrl}
+        label="GitHub 저장소"
+        name="repoUrl"
+        defaultValue={values?.repoUrl ?? ""}
+        placeholder={`https://github.com/${githubLogin ?? "my-name"}/my-project`}
+        hint={
+          githubLogin
+            ? "선택입니다. 넣으면 스타·언어·README 를 가져오고 소유 확인 배지가 붙습니다. 공개 저장소여야 합니다."
+            : "선택입니다. 저장소를 넣으려면 위에서 GitHub 계정을 먼저 연결해주세요."
+        }
+        errors={state.fieldErrors?.repoUrl}
       />
 
       <Field
