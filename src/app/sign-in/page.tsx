@@ -29,9 +29,9 @@ export default async function SignInPage({
       <Sparkles className="size-8 text-primary" aria-hidden />
       <h1 className="mt-4 text-2xl font-semibold">firework 로그인</h1>
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        둘러보기·설문·추첨 참여는 아무 계정으로나 가능합니다.
+        둘러보기·설문·추첨 참여·프로젝트 등록 모두 아무 계정으로나 가능합니다.
         <br />
-        프로젝트를 등록하려면 나중에 GitHub 계정 연결이 필요합니다.
+        GitHub 저장소를 함께 올릴 때만 그 계정 연결이 필요합니다.
       </p>
 
       <div className="mt-8 w-full">
