@@ -1,7 +1,52 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { serverEnv } from "@/lib/env";
+
+/**
+ * 설정을 한 단계 건너뛰었을 때 나오는 Prisma 오류를 사람이 읽을 수 있는 말로 바꾼다.
+ *
+ * 원래 메시지는 "The table `public.featured_slot` does not exist" 인데, Next 의
+ * 개발 오버레이를 거치면 난독화된 Turbopack 청크 이름에 파묻혀 무엇을 해야 하는지가
+ * 보이지 않는다. 정작 필요한 건 실행할 명령 한 줄이다.
+ */
+const SETUP_HINTS: Record<string, string> = {
+  // 테이블이 없다 — 마이그레이션을 안 돌렸다
+  P2021:
+    "데이터베이스에 테이블이 없습니다. 마이그레이션을 아직 적용하지 않은 것 같습니다.\n\n    npm run db:deploy\n    npm run db:seed\n",
+  // 컬럼이 없다 — 스키마가 바뀌었는데 마이그레이션을 안 돌렸다
+  P2022:
+    "데이터베이스 스키마가 코드보다 오래되었습니다.\n\n    npm run db:deploy\n",
+  // 연결 자체가 안 된다
+  P1001:
+    "데이터베이스에 연결할 수 없습니다. PostgreSQL 이 떠 있는지, .env 의 DATABASE_URL 이 맞는지 확인해주세요.\n\n    docker compose up -d\n",
+};
+
+/** Prisma 오류에서 실제 원인 한 줄만 뽑는다. 앞쪽은 쿼리 덤프라 도움이 안 된다. */
+function lastLine(message: string): string {
+  return message.trim().split("\n").filter((l) => l.trim()).pop()?.trim() ?? message.trim();
+}
+
+function withSetupHints<T extends PrismaClient>(client: T) {
+  return client.$extends({
+    query: {
+      async $allOperations({ args, query }) {
+        try {
+          return await query(args);
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            const hint = SETUP_HINTS[error.code];
+            if (hint) throw new Error(`${hint}\n(${error.code}: ${lastLine(error.message)})`);
+          }
+          if (error instanceof Prisma.PrismaClientInitializationError) {
+            throw new Error(`${SETUP_HINTS.P1001}\n(${lastLine(error.message)})`);
+          }
+          throw error;
+        }
+      },
+    },
+  });
+}
 
 /**
  * Prisma 7 은 런타임 연결을 드라이버 어댑터로 받는다(스키마의 datasource.url 은 없어졌다).
@@ -10,10 +55,12 @@ import { serverEnv } from "@/lib/env";
  */
 function createPrismaClient() {
   const adapter = new PrismaPg({ connectionString: serverEnv().DATABASE_URL });
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  return withSetupHints(
+    new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    }),
+  );
 }
 
 const globalForPrisma = globalThis as unknown as {

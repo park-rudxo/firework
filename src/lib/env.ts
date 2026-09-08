@@ -6,7 +6,9 @@ import { z } from "zod";
  */
 const serverSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL 이 필요합니다"),
-  BETTER_AUTH_SECRET: z.string().min(16, "BETTER_AUTH_SECRET 은 최소 16자여야 합니다"),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(16, "비어 있거나 너무 짧습니다 (최소 16자)"),
   BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
 
   // 소셜 프로바이더는 전부 선택이다. 설정된 것만 로그인 화면에 뜬다.
@@ -43,7 +45,12 @@ export function serverEnv(): ServerEnv {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    throw new Error(`환경변수 설정이 올바르지 않습니다.\n${issues}\n\n.env.example 을 참고하세요.`);
+    // "무엇이 잘못됐다" 만으로는 부족하다. 대부분은 .env 를 복사만 하고 비밀키를
+    // 채우지 않아서 나는 오류이므로, 바로 실행할 수 있는 명령을 알려준다.
+    throw new Error(
+      `환경변수 설정이 올바르지 않습니다.\n${issues}\n\n` +
+        `아래를 실행하면 .env 를 만들고 비밀키를 채웁니다.\n\n    npm run setup\n`,
+    );
   }
 
   cached = parsed.data;
