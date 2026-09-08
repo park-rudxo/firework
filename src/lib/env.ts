@@ -24,6 +24,10 @@ const serverSchema = z.object({
   // 저장소 메타 수집용. 없어도 동작하지만 시간당 60회로 제한된다.
   GITHUB_TOKEN: z.string().optional(),
 
+  // 이메일 인증 코드 발송. 없으면 코드를 서버 콘솔에 찍는다(개발용).
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+
   // 최초 관리자를 만드는 경로. 콤마로 구분한 이메일 목록.
   // 여기 적힌 이메일로 로그인하면 관리자로 승격된다. 그 뒤로는 관리자가
   // 화면에서 다른 사람을 임명할 수 있으므로, 이 값은 부트스트랩 용도다.

@@ -5,23 +5,22 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon } from "lucide-react";
 
+import { SignInMenu } from "@/components/auth/sign-in-menu";
 import { signOut } from "@/lib/auth-client";
+import type { ProviderId } from "@/lib/env";
 import type { Viewer } from "@/lib/session";
 
-export function UserMenu({ viewer }: { viewer: Viewer | null }) {
+export function UserMenu({
+  viewer,
+  providers,
+}: {
+  viewer: Viewer | null;
+  providers: ProviderId[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  if (!viewer) {
-    return (
-      <Link
-        href="/sign-in"
-        className="rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-      >
-        로그인
-      </Link>
-    );
-  }
+  if (!viewer) return <SignInMenu providers={providers} />;
 
   return (
     <div className="relative flex items-center gap-2">
@@ -61,6 +60,15 @@ export function UserMenu({ viewer }: { viewer: Viewer | null }) {
             <div className="border-b border-border px-3.5 py-3">
               <p className="truncate text-sm font-medium">{viewer.displayName}</p>
               <p className="truncate text-xs text-muted-foreground">{viewer.email}</p>
+              {!viewer.emailVerified ? (
+                <Link
+                  href="/verify-email"
+                  onClick={() => setOpen(false)}
+                  className="mt-2 block rounded-lg bg-accent/10 px-2 py-1.5 text-xs text-accent"
+                >
+                  이메일 확인이 필요합니다 →
+                </Link>
+              ) : null}
             </div>
 
             <MenuLink href="/dashboard" icon={LayoutDashboard} onClick={() => setOpen(false)}>
