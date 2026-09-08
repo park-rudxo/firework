@@ -68,6 +68,10 @@ for (const p of PROVIDERS) {
     // 띄우지 않고 redirect_uri_mismatch 로 막는다. 무엇을 등록해야 하는지는
     // 켜진 뒤에 오히려 더 필요한 정보다.
     info(`  콜백: ${callbackUrl(p, process.env)}`);
+    // 콜백 주소가 맞는데도 막히는 흔한 경우는 "다른 클라이언트에 등록" 이다.
+    // 콘솔 목록에서 어느 항목을 열어야 하는지 대조할 수 있게 ID 를 같이 찍는다.
+    // Client ID 는 인가 요청 URL 에 그대로 실려 나가는 공개 값이다 — 시크릿은 찍지 않는다.
+    info(`  ${p.envPrefix}_CLIENT_ID: ${process.env[`${p.envPrefix}_CLIENT_ID`]}`);
   } else {
     bad(`${p.label} — ${p.envPrefix}_CLIENT_ID / ${p.envPrefix}_CLIENT_SECRET 비어 있음`);
   }
@@ -79,6 +83,10 @@ if (configured.length > 0) {
   info("한 글자라도 다르면 redirect_uri_mismatch (또는 그에 해당하는 오류) 로 막힙니다.");
   info("자주 어긋나는 곳: 끝의 슬래시, http/https, localhost 와 127.0.0.1,");
   info("그리고 Google 은 '승인된 JavaScript 원본' 이 아니라 '승인된 리디렉션 URI' 칸입니다.");
+  info("");
+  info("주소가 맞는데도 막힌다면 등록한 클라이언트가 다른 것입니다. 콘솔 목록에서");
+  info("위에 찍힌 CLIENT_ID 와 같은 항목을 열어 거기에 등록했는지 확인해주세요.");
+  info("Google 은 클라이언트 유형이 '웹 애플리케이션' 이어야 그 칸이 아예 나타납니다.");
   info("");
   info(`이 주소는 BETTER_AUTH_URL(${origin(process.env)}) 로 만듭니다.`);
   info("접속하는 주소를 바꾸면 이 값과 콘솔 등록도 같이 바꿔야 합니다.");
