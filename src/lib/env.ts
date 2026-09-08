@@ -74,13 +74,20 @@ export function bootstrapAdminEmails(env: ServerEnv): string[] {
     .filter(Boolean);
 }
 
-/** 자격증명이 양쪽 다 채워진 프로바이더만 "설정됨"으로 본다. */
+/**
+ * 자격증명이 양쪽 다 채워진 프로바이더만 "설정됨"으로 본다.
+ *
+ * 공백을 걷어내고 본다. 공백 한 칸은 truthy 라서 그냥 두면 버튼은 뜨는데 로그인은
+ * invalid_code 로 실패한다 — 설정이 안 된 것보다 알아채기 훨씬 어려운 상태다.
+ */
+const filled = (...values: (string | undefined)[]) => values.every((v) => (v ?? "").trim() !== "");
+
 export function configuredProviders(env: ServerEnv) {
   return {
-    google: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-    kakao: Boolean(env.KAKAO_CLIENT_ID && env.KAKAO_CLIENT_SECRET),
-    naver: Boolean(env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET),
-    github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+    google: filled(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
+    kakao: filled(env.KAKAO_CLIENT_ID, env.KAKAO_CLIENT_SECRET),
+    naver: filled(env.NAVER_CLIENT_ID, env.NAVER_CLIENT_SECRET),
+    github: filled(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET),
   };
 }
 

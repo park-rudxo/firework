@@ -71,6 +71,9 @@ export function SignInMenu({ providers }: { providers: ProviderId[] }) {
                           await signIn.social({
                             provider,
                             callbackURL: window.location.pathname + window.location.search,
+                            // 실패하면 Better Auth 기본 화면 대신 무엇을 확인해야
+                            // 하는지 적힌 우리 화면으로 보낸다.
+                            errorCallbackURL: "/sign-in/error",
                           });
                         } finally {
                           setPending(null);
