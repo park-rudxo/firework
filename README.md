@@ -126,6 +126,16 @@ npm run dev
 
 http://localhost:3000 을 열면 프로젝트 6개가 들어있는 상태로 뜬다.
 
+**볼륨 경로가 남아 있어 컨테이너가 안 뜨면** 볼륨을 지우고 다시 만든다. `postgres:18`
+부터 데이터 경로가 바뀌어서(`/var/lib/postgresql/data` → `/var/lib/postgresql`),
+예전 설정으로 만들어진 볼륨이 남아 있으면 기동에 실패한다.
+
+```bash
+docker compose down -v      # 볼륨까지 지운다 (개발용이라 안전)
+npm run db:up
+npm run db:deploy && npm run db:seed
+```
+
 `docker compose up -d` 는 컨테이너를 띄우기만 하고 **준비될 때까지 기다리지 않는다.**
 첫 실행은 Postgres 가 데이터 디렉터리를 초기화하느라 몇 초 걸리는데, 그 사이에
 `db:deploy` 를 돌리면 연결이 거절된다. `npm run db:up` 은 `--wait` 로 healthcheck 가
