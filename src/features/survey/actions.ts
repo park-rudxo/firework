@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import { requireViewer } from "@/lib/session";
+import { requireVerifiedViewer, requireViewer } from "@/lib/session";
 import { bumpStat } from "@/features/curation/stats";
 import { notify } from "@/features/notification/create";
 import { MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
@@ -36,7 +36,14 @@ export async function submitSurveyResponse(
   _prev: SurveyState,
   form: FormData,
 ): Promise<SurveyState> {
-  const viewer = await requireViewer();
+  // 응답 하나가 추첨 응모권 하나다. 계정을 여러 개 만들면 그대로 이득이 되므로
+  // 이메일 확인을 마친 사람만 받는다.
+  let viewer;
+  try {
+    viewer = await requireVerifiedViewer();
+  } catch {
+    return { ok: false, error: "이메일 확인이 필요합니다. 오른쪽 위 메뉴에서 확인해주세요." };
+  }
 
   const survey = await db.survey.findUnique({
     where: { id: surveyId },
