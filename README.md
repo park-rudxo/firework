@@ -116,9 +116,7 @@ SSAFY에서는 관통·특화·자율 프로젝트에 토이 프로젝트까지 
 git clone https://github.com/park-rudxo/firework.git
 cd firework
 
-cp .env.example .env                        # 1) 먼저 복사한다 (아래 이유 참고)
-openssl rand -base64 32                     #    출력값을 .env 의 BETTER_AUTH_SECRET 에 넣는다
-
+npm run setup                               # 1) .env 를 만들고 비밀키를 채운다
 docker compose up -d                        # 2) PostgreSQL 18
 npm ci                                      # 3) npm install 이 아니라 ci
 npm run db:deploy                           # 4) 스키마 적용
@@ -127,6 +125,9 @@ npm run dev
 ```
 
 http://localhost:3000 을 열면 프로젝트 6개가 들어있는 상태로 뜬다.
+
+`npm run setup` 은 node 내장 모듈만 쓰므로 `npm ci` 전에도 돌아간다. 이미 있는 `.env`
+는 건드리지 않고, 비밀키가 이미 채워져 있으면 덮어쓰지 않는다.
 
 **순서가 중요하다.** `npm ci` 의 `postinstall` 이 `prisma generate` 를 부르고, 그게
 `DATABASE_URL` 을 읽는다. `.env` 가 없으면 설치가 거기서 실패한다.
@@ -165,6 +166,7 @@ npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest — 익명성 스키마, 추첨 결정성, 새니타이즈
 npm run e2e         # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
+npm run setup       # .env 생성 + 비밀키 채우기
 npm run db:migrate  # 마이그레이션 생성·적용
 npm run db:seed     # 개발용 시드 데이터
 npm run db:studio   # Prisma Studio
