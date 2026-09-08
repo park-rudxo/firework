@@ -7,14 +7,7 @@ import { BadgeCheck, RefreshCw } from "lucide-react";
 import { GithubMark } from "@/components/icons/github-mark";
 import { linkSocial } from "@/lib/auth-client";
 import { syncGithubLogin } from "@/features/profile/actions";
-import type { ProviderId } from "@/lib/env";
-
-const LABEL: Record<ProviderId, string> = {
-  google: "Google",
-  kakao: "카카오",
-  naver: "네이버",
-  github: "GitHub",
-};
+import { PROVIDER_LABEL, PROVIDER_ORDER, type ProviderId } from "@/lib/providers";
 
 export function LinkedAccounts({
   linked,
@@ -30,7 +23,7 @@ export function LinkedAccounts({
   const [error, setError] = useState<string | null>(null);
   const [syncing, startSync] = useTransition();
 
-  const providers = (Object.keys(LABEL) as ProviderId[]).filter((p) => available[p]);
+  const providers = PROVIDER_ORDER.filter((p) => available[p]);
   const githubLinked = linked.includes("github");
 
   return (
@@ -43,7 +36,7 @@ export function LinkedAccounts({
             className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface px-4 py-3"
           >
             {provider === "github" ? <GithubMark className="size-4" /> : null}
-            <span className="text-sm font-medium">{LABEL[provider]}</span>
+            <span className="text-sm font-medium">{PROVIDER_LABEL[provider]}</span>
 
             {isLinked ? (
               <span className="flex items-center gap-1 text-xs text-success">

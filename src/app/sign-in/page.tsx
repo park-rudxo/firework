@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 
 import { SignInButtons } from "@/components/auth/sign-in-buttons";
-import { configuredProviders, serverEnv } from "@/lib/env";
+import { enabledProviders, serverEnv } from "@/lib/env";
+import { PROVIDER_ORDER } from "@/lib/providers";
 import { getViewer } from "@/lib/session";
 
 export const metadata: Metadata = { title: "로그인" };
@@ -17,10 +18,10 @@ export default async function SignInPage({
   const viewer = await getViewer();
   if (viewer) redirect(safeNext(next));
 
-  const providers = configuredProviders(serverEnv());
-  const enabled = (Object.keys(providers) as (keyof typeof providers)[]).filter(
-    (p) => providers[p],
-  );
+  const enabled = enabledProviders(serverEnv());
+  // 안 켜진 프로바이더를 어떻게 켜는지는 만드는 사람에게만 보여준다.
+  const missing =
+    process.env.NODE_ENV === "production" ? [] : PROVIDER_ORDER.filter((p) => !enabled.includes(p));
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-20">
@@ -38,9 +39,8 @@ export default async function SignInPage({
             소셜 로그인이 하나도 설정되지 않았습니다. <code>.env</code> 에 프로바이더 자격증명을
             채워주세요.
           </p>
-        ) : (
-          <SignInButtons providers={enabled} callbackURL={safeNext(next)} />
-        )}
+        ) : null}
+        <SignInButtons providers={enabled} missing={missing} callbackURL={safeNext(next)} />
       </div>
     </div>
   );

@@ -166,12 +166,27 @@ npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`
 설문 응답·추첨 응모·프로젝트 등록처럼 로그인이 필요한 화면을 보려면 소셜 프로바이더를
 최소 하나 설정해야 한다. 가장 빠른 건 GitHub 이다(업로더 인증에도 어차피 필요하다).
 
-1. https://github.com/settings/developers → **New OAuth App**
-2. Homepage URL `http://localhost:3000`
-3. Authorization callback URL `http://localhost:3000/api/auth/callback/github`
-4. 발급된 Client ID / Secret 을 `.env` 의 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 에 넣는다
+### 소셜 로그인 켜기
 
-다른 프로바이더의 콜백 URL도 형태는 같다 — `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
+버튼은 **자격증명이 채워진 프로바이더만** 뜬다. 카카오가 안 보인다면 코드 문제가 아니라
+`KAKAO_CLIENT_ID` / `KAKAO_CLIENT_SECRET` 이 비어 있는 것이다. 개발 모드에서는 로그인
+화면에 "아직 켜지지 않은 로그인" 안내가 함께 뜨고, `npm run doctor` 는 넷 다 상태와
+켜는 절차를 출력한다.
+
+콜백 URL 은 모두 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 형태다.
+
+| | 콘솔 | 놓치기 쉬운 것 |
+|---|---|---|
+| **GitHub** | [Developer settings](https://github.com/settings/developers) → New OAuth App | Authorization callback URL 하나만 맞추면 끝난다. `GITHUB_TOKEN` 과는 다른 값이다. |
+| **Google** | [사용자 인증 정보](https://console.cloud.google.com/apis/credentials) | OAuth 동의 화면을 **먼저** 구성해야 클라이언트를 만들 수 있다. 게시 상태가 "테스트" 면 테스트 사용자에 넣은 계정만 로그인된다. |
+| **네이버** | [애플리케이션 등록](https://developers.naver.com/apps/#/register) | 제공 정보에 **이메일 주소**를 체크해야 한다. 검수 전에는 개발자 본인과 콘솔 멤버로 등록한 계정만 로그인된다. |
+| **카카오** | [내 애플리케이션](https://developers.kakao.com/console/app) | ID 는 **REST API 키**다. Client Secret 은 기본이 '사용 안 함' 이라 직접 켜야 하고, 동의항목에서 **카카오계정(이메일)** 을 켜지 않으면 가입이 `email_not_found` 로 실패한다. |
+
+동의 항목이나 콜백을 고친 뒤에는 프로바이더 쪽 기존 동의를 한 번 해제하고 다시
+로그인해야 새 항목을 물어본다. `.env` 를 고친 뒤에는 개발 서버를 다시 시작해야 한다.
+
+로그인이 실패하면 `/sign-in/error` 가 Better Auth 의 에러 코드를 무엇이 어긋났을 때
+나오는 것인지로 풀어서 보여준다.
 
 `ADMIN_EMAILS` 에 적힌 이메일로 로그인하면 관리자가 된다. 단 **이메일이 검증된 계정**
 (Google·GitHub)이어야 승격된다. 비워두면 신고 큐를 열 수 있는 사람이 아무도 없다.

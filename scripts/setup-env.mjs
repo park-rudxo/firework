@@ -2,6 +2,8 @@
 import { randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
+import { PROVIDERS, isConfigured, setupLines } from "./providers.mjs";
+
 /**
  * .env 를 만들고 BETTER_AUTH_SECRET 을 채운다.
  *
@@ -44,21 +46,38 @@ if (current.length >= 16) {
 // 남은 것 중 무엇이 없으면 무엇이 안 되는지 알려준다.
 const value = (key) => env.match(new RegExp(`^${key}\\s*=\\s*"?([^"\\n]*)"?$`, "m"))?.[1] ?? "";
 
-const providers = ["GOOGLE", "KAKAO", "NAVER", "GITHUB"].filter(
-  (p) => value(`${p}_CLIENT_ID`) && value(`${p}_CLIENT_SECRET`),
+// .env 에 적힌 값을 그대로 읽는다. 아직 process.env 에 실리기 전이다.
+const values = Object.fromEntries(
+  ["GOOGLE", "KAKAO", "NAVER", "GITHUB"].flatMap((p) => [
+    [`${p}_CLIENT_ID`, value(`${p}_CLIENT_ID`)],
+    [`${p}_CLIENT_SECRET`, value(`${p}_CLIENT_SECRET`)],
+  ]),
 );
+const on = PROVIDERS.filter((p) => isConfigured(p, values));
+const off = PROVIDERS.filter((p) => !isConfigured(p, values));
 
 console.log("");
 if (!value("DATABASE_URL")) {
   console.log("⚠ DATABASE_URL 이 비어 있습니다. docker compose up -d 를 쓰면 기본값 그대로 됩니다.");
 }
-if (providers.length === 0) {
-  console.log("· 소셜 로그인이 아직 없습니다 — 홈·둘러보기·상세·일정은 그대로 열립니다.");
-  console.log("  설문·추첨·프로젝트 등록까지 보려면 GitHub OAuth 앱을 하나 만드세요:");
-  console.log("  https://github.com/settings/developers → New OAuth App");
-  console.log("  Callback URL: http://localhost:3000/api/auth/callback/github");
-} else {
-  console.log(`· 소셜 로그인: ${providers.join(", ")}`);
+
+console.log(
+  on.length === 0
+    ? "· 소셜 로그인이 아직 없습니다 — 홈·둘러보기·상세·일정은 그대로 열립니다."
+    : `· 소셜 로그인: ${on.map((p) => p.label).join(", ")}`,
+);
+if (off.length > 0) {
+  console.log(`  아직 안 켜진 것: ${off.map((p) => p.label).join(", ")}`);
+  console.log("  켜는 절차는 npm run doctor 가 프로바이더별로 알려줍니다.");
+}
+if (on.length === 0) {
+  // 하나도 없으면 로그인을 아예 볼 수 없으므로, 가장 빠른 하나는 여기서 끝까지 안내한다.
+  const first = PROVIDERS.find((p) => p.id === "github");
+  console.log("");
+  console.log("  가장 빠른 건 GitHub 입니다 (프로젝트 업로더 인증에도 어차피 필요합니다).");
+  for (const line of setupLines(first, { BETTER_AUTH_URL: value("BETTER_AUTH_URL") })) {
+    console.log(`  ${line}`);
+  }
 }
 if (!value("GITHUB_TOKEN")) {
   console.log("· GITHUB_TOKEN 이 없어 저장소 메타 수집이 시간당 60회로 제한됩니다.");

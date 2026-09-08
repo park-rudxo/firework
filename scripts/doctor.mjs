@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { config } from "dotenv";
+import { PROVIDERS, isConfigured, setupLines } from "./providers.mjs";
 
 /**
  * 왜 안 뜨는지 한 번에 알려준다.
@@ -52,7 +53,35 @@ try {
 }
 info(`연결 대상: ${target}`);
 
-// ── 2. 마이그레이션 파일 ────────────────────────────────────
+// ── 2. 소셜 로그인 ─────────────────────────────────────────
+// 안 뜨는 버튼은 코드 문제가 아니라 자격증명이 없는 것이다. 넷 다 상태를 보여주고,
+// 없는 것은 콘솔에서 무엇을 해야 하는지까지 적어준다. 여기까지 와야 "왜 카카오가
+// 안 보이지" 가 끝난다.
+console.log("\n소셜 로그인");
+const configured = PROVIDERS.filter((p) => isConfigured(p, process.env));
+const notConfigured = PROVIDERS.filter((p) => !isConfigured(p, process.env));
+
+for (const p of PROVIDERS) {
+  if (isConfigured(p, process.env)) ok(`${p.label} — 자격증명 있음`);
+  else bad(`${p.label} — ${p.envPrefix}_CLIENT_ID / ${p.envPrefix}_CLIENT_SECRET 비어 있음`);
+}
+
+if (configured.length === 0) {
+  info("");
+  info("하나도 없으면 로그인 버튼이 아예 뜨지 않습니다. 공개 화면은 그대로 열립니다.");
+}
+
+if (notConfigured.length > 0) {
+  console.log("\n안 켜진 로그인을 켜려면");
+  for (const p of notConfigured) {
+    console.log("");
+    for (const line of setupLines(p, process.env)) info(line);
+  }
+  info("");
+  info(".env 를 고친 뒤에는 개발 서버를 다시 시작해야 반영됩니다.");
+}
+
+// ── 3. 마이그레이션 파일 ────────────────────────────────────
 console.log("\n마이그레이션 파일");
 const dir = "prisma/migrations";
 const migrations = existsSync(dir)
@@ -72,7 +101,7 @@ for (const m of schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)\n\}/gm)) {
   if (!m[2].includes("@@map(")) expected.add(m[1]);
 }
 
-// ── 3. 데이터베이스 ────────────────────────────────────────
+// ── 4. 데이터베이스 ────────────────────────────────────────
 console.log("\n데이터베이스");
 let pg;
 try {
@@ -132,7 +161,7 @@ if (present.has("_prisma_migrations")) {
   }
 }
 
-// ── 4. 데이터 ──────────────────────────────────────────────
+// ── 5. 데이터 ──────────────────────────────────────────────
 console.log("\n데이터");
 const projects = await client.query(`SELECT count(*)::int AS n FROM "Project"`);
 const n = projects.rows[0].n;
@@ -141,19 +170,6 @@ if (n === 0) {
   info("→ npm run db:seed");
 } else {
   ok(`프로젝트 ${n}개`);
-}
-
-// ── 5. 소셜 로그인 ─────────────────────────────────────────
-console.log("\n소셜 로그인");
-const providers = ["GOOGLE", "KAKAO", "NAVER", "GITHUB"].filter(
-  (p) => process.env[`${p}_CLIENT_ID`] && process.env[`${p}_CLIENT_SECRET`],
-);
-if (providers.length === 0) {
-  info("설정된 프로바이더 없음 — 공개 화면은 열리지만 로그인은 안 됩니다.");
-  info("https://github.com/settings/developers → New OAuth App");
-  info("Callback: http://localhost:3000/api/auth/callback/github");
-} else {
-  ok(providers.join(", "));
 }
 
 await client.end();

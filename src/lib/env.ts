@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PROVIDER_IDS, type ProviderId } from "@/lib/providers";
+
 /**
  * 환경변수는 서버에서만 읽는다. 이 모듈을 클라이언트 컴포넌트에서 import 하면
  * 시크릿이 번들에 섞여 들어가므로, 서버 전용임을 런타임에도 못박아 둔다.
@@ -82,13 +84,24 @@ export function bootstrapAdminEmails(env: ServerEnv): string[] {
  */
 const filled = (...values: (string | undefined)[]) => values.every((v) => (v ?? "").trim() !== "");
 
-export function configuredProviders(env: ServerEnv) {
+/**
+ * 반환 타입을 Record<ProviderId, boolean> 로 못박아 둔다. providers.ts 에
+ * 프로바이더를 하나 추가하면 여기가 컴파일 에러로 걸려서, 등록만 해두고
+ * 자격증명 확인을 빠뜨리는 일이 생기지 않는다.
+ */
+export function configuredProviders(env: ServerEnv): Record<ProviderId, boolean> {
   return {
-    google: filled(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
     kakao: filled(env.KAKAO_CLIENT_ID, env.KAKAO_CLIENT_SECRET),
     naver: filled(env.NAVER_CLIENT_ID, env.NAVER_CLIENT_SECRET),
+    google: filled(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET),
     github: filled(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET),
   };
 }
 
-export type ProviderId = keyof ReturnType<typeof configuredProviders>;
+/** 설정된 프로바이더만, 화면에 낼 순서대로. */
+export function enabledProviders(env: ServerEnv): ProviderId[] {
+  const configured = configuredProviders(env);
+  return PROVIDER_IDS.filter((id) => configured[id]);
+}
+
+export type { ProviderId };

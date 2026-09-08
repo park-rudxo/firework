@@ -2,66 +2,55 @@
 
 import { useState } from "react";
 
+import { GithubMark } from "@/components/icons/github-mark";
 import { signIn } from "@/lib/auth-client";
-import type { ProviderId } from "@/lib/env";
-
-const meta: Record<ProviderId, { label: string; className: string }> = {
-  kakao: {
-    label: "카카오로 계속하기",
-    className: "bg-[#FEE500] text-[#191600] hover:brightness-95",
-  },
-  naver: {
-    label: "네이버로 계속하기",
-    className: "bg-[#03C75A] text-white hover:brightness-95",
-  },
-  google: {
-    label: "Google로 계속하기",
-    className: "border border-border bg-surface hover:bg-surface-muted",
-  },
-  github: {
-    label: "GitHub로 계속하기",
-    className: "bg-[#24292f] text-white hover:brightness-125",
-  },
-};
-
-// 국내 사용자 비중을 생각해 카카오·네이버를 위로 올린다.
-const order: ProviderId[] = ["kakao", "naver", "google", "github"];
+import {
+  PROVIDER_BUTTON_CLASS,
+  PROVIDER_LABEL,
+  PROVIDER_ORDER,
+  type ProviderId,
+} from "@/lib/providers";
+import { ProviderSetupHint } from "@/components/auth/provider-setup-hint";
 
 export function SignInButtons({
   providers,
+  missing,
   callbackURL,
 }: {
   providers: ProviderId[];
+  /** 자격증명이 없어 뜨지 않는 프로바이더. 개발 환경에서만 채워 보낸다. */
+  missing?: ProviderId[];
   callbackURL: string;
 }) {
   const [pending, setPending] = useState<ProviderId | null>(null);
 
   return (
     <div className="flex flex-col gap-2.5">
-      {order
-        .filter((p) => providers.includes(p))
-        .map((provider) => (
-          <button
-            key={provider}
-            type="button"
-            disabled={pending !== null}
-            onClick={async () => {
-              setPending(provider);
-              try {
-                await signIn.social({
-                  provider,
-                  callbackURL,
-                  errorCallbackURL: "/sign-in/error",
-                });
-              } finally {
-                setPending(null);
-              }
-            }}
-            className={`w-full rounded-xl px-4 py-3 text-sm font-medium transition disabled:opacity-60 ${meta[provider].className}`}
-          >
-            {pending === provider ? "이동 중…" : meta[provider].label}
-          </button>
-        ))}
+      {PROVIDER_ORDER.filter((p) => providers.includes(p)).map((provider) => (
+        <button
+          key={provider}
+          type="button"
+          disabled={pending !== null}
+          onClick={async () => {
+            setPending(provider);
+            try {
+              await signIn.social({
+                provider,
+                callbackURL,
+                errorCallbackURL: "/sign-in/error",
+              });
+            } finally {
+              setPending(null);
+            }
+          }}
+          className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition disabled:opacity-60 ${PROVIDER_BUTTON_CLASS[provider]}`}
+        >
+          {provider === "github" ? <GithubMark className="size-4" /> : null}
+          {pending === provider ? "이동 중…" : `${PROVIDER_LABEL[provider]}로 계속하기`}
+        </button>
+      ))}
+
+      {missing && missing.length > 0 ? <ProviderSetupHint missing={missing} /> : null}
     </div>
   );
 }
