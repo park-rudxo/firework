@@ -23,6 +23,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:purge": "tsx prisma/purge.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -70,3 +70,28 @@ test("신고 정책이 자동 숨김이 없다고 밝힌다", async ({ page }) =
     page.getByRole("heading", { name: "신고만으로는 아무것도 내려가지 않습니다" }),
   ).toBeVisible();
 });
+
+test("저장소 없이 서비스 주소만 있는 프로젝트도 열린다", async ({ page }) => {
+  await page.goto("/projects/jariitda");
+
+  await expect(page.getByRole("heading", { name: "자리있다", level: 1 })).toBeVisible();
+  // 저장소가 없으면 서비스 주소가 대문이 된다.
+  const serviceLink = page.getByRole("link", { name: "바로 써보기" });
+  await expect(serviceLink).toBeVisible();
+  await expect(serviceLink).toHaveAttribute("rel", /noopener/);
+
+  // 확인할 저장소가 없으므로 GitHub 버튼도 소유 배지도 뜨지 않는다.
+  await expect(page.getByRole("link", { name: /GitHub/ })).toHaveCount(0);
+  await expect(page.getByText("소유 미확인")).toHaveCount(0);
+});
+
+test("이용약관과 개인정보처리방침이 열린다", async ({ page }) => {
+  await page.goto("/about/terms");
+  await expect(page.getByRole("heading", { name: "이용약관", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /제6조/ })).toBeVisible();
+
+  // 푸터에서 서로 오갈 수 있어야 한다. 소셜 로그인 심사에서도 확인하는 경로다.
+  await page.getByRole("contentinfo").getByRole("link", { name: "개인정보처리방침" }).click();
+  await expect(page.getByRole("heading", { name: "개인정보처리방침", level: 1 })).toBeVisible();
+  await expect(page.getByText("광고 식별자", { exact: false })).toBeVisible();
+});

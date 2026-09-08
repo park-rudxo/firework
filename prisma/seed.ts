@@ -3,6 +3,12 @@ import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+import {
+  SEED_EMAIL_DOMAIN,
+  SEED_PROJECT_SLUGS,
+  SEED_USER_ID_PREFIX,
+} from "./seed-manifest";
+
 config();
 
 /**
@@ -12,20 +18,62 @@ config();
  * 규칙도 응답이 있어야 확인할 수 있다. 그래서 프로젝트만이 아니라 반응·설문
  * 응답·추첨 응모까지 만든다.
  *
+ * 이 스크립트는 시작할 때 기존 데이터를 전부 지운다. 그래서 로컬 데이터베이스가
+ * 아니면 실행을 거부한다 — 운영 DB 를 향한 채로 무심코 돌리는 사고가 한 번이면
+ * 되돌릴 수 없기 때문이다. 정말 필요하면 SEED_FORCE=1 을 붙인다.
+ *
+ * 넣은 데모 데이터를 지우는 것은 npm run db:purge 다. 그쪽은 전체 삭제가 아니라
+ * 시드가 만든 행만 골라 지우므로 실사용 중인 데이터베이스에서도 안전하다.
+ *
  * 실행: npm run db:seed
  */
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
+/** 로컬로 볼 수 있는 호스트. docker compose 도 localhost 로 노출된다. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "postgres", "db"]);
+
+function assertSafeTarget() {
+  if (process.env.SEED_FORCE === "1") return;
+
+  let host: string;
+  try {
+    host = new URL(process.env.DATABASE_URL ?? "").hostname;
+  } catch {
+    host = "";
+  }
+  if (LOCAL_HOSTS.has(host)) return;
+
+  console.error(
+    `\n시드는 기존 데이터를 전부 지우고 시작합니다. 지금 DATABASE_URL 이 가리키는 곳은` +
+      `\n로컬이 아닙니다(${host || "알 수 없음"}). 실수로 운영 데이터를 지우지 않도록 중단합니다.` +
+      `\n\n정말 이 데이터베이스를 초기화하려면 SEED_FORCE=1 npm run db:seed\n`,
+  );
+  process.exit(1);
+}
+
 const NAMES = ["김싸피", "이관통", "박특화", "최자율", "정프로", "한개발", "오테스트", "윤배포"];
 
-const PROJECTS = [
+type SeedProject = {
+  slug: string;
+  name: string;
+  tagline: string;
+  category: "WEB" | "MOBILE" | "AI" | "GAME" | "TOOL" | "EMBEDDED" | "DATA" | "ETC";
+  tags: string[];
+  /** 저장소가 없는 프로젝트도 있다. 배포된 웹서비스나 스토어 앱은 서비스 주소만으로 등록된다. */
+  repoUrl: string | null;
+  demoUrl?: string;
+  language: string | null;
+  stars: number;
+};
+
+const PROJECTS: SeedProject[] = [
   {
     slug: "moamoa",
     name: "모아모아",
     tagline: "흩어진 스터디 자료를 한곳에 모아주는 팀 위키",
-    category: "WEB" as const,
+    category: "WEB",
     tags: ["React", "협업툴", "관통프로젝트"],
     repoUrl: "https://github.com/facebook/react",
     language: "TypeScript",
@@ -35,7 +83,7 @@ const PROJECTS = [
     slug: "chulseok",
     name: "출석왕",
     tagline: "SSAFY 출결을 자동으로 기록해주는 크롬 확장",
-    category: "TOOL" as const,
+    category: "TOOL",
     tags: ["Chrome Extension", "자동화"],
     repoUrl: "https://github.com/microsoft/vscode",
     language: "JavaScript",
@@ -45,7 +93,7 @@ const PROJECTS = [
     slug: "code-review-bot",
     name: "코드리뷰 봇",
     tagline: "PR을 열면 컨벤션 위반을 먼저 잡아주는 깃허브 앱",
-    category: "AI" as const,
+    category: "AI",
     tags: ["GitHub App", "LLM", "자율프로젝트"],
     repoUrl: "https://github.com/vercel/next.js",
     language: "Python",
@@ -55,7 +103,7 @@ const PROJECTS = [
     slug: "bapmuk",
     name: "밥먹자",
     tagline: "점심 메뉴 정하기 싸움을 끝내는 투표 앱",
-    category: "MOBILE" as const,
+    category: "MOBILE",
     tags: ["React Native", "토이프로젝트"],
     repoUrl: "https://github.com/prisma/prisma",
     language: "Dart",
@@ -65,7 +113,7 @@ const PROJECTS = [
     slug: "algo-tracker",
     name: "알고 트래커",
     tagline: "백준·프로그래머스 풀이를 자동으로 커밋해주는 CLI",
-    category: "TOOL" as const,
+    category: "TOOL",
     tags: ["CLI", "알고리즘"],
     repoUrl: "https://github.com/tailwindlabs/tailwindcss",
     language: "Go",
@@ -75,15 +123,40 @@ const PROJECTS = [
     slug: "ssafy-market",
     name: "싸피마켓",
     tagline: "기수 안에서만 쓰는 중고 거래 장터",
-    category: "WEB" as const,
+    category: "WEB",
     tags: ["Next.js", "특화프로젝트"],
     repoUrl: "https://github.com/better-auth/better-auth",
     language: "TypeScript",
     stars: 156,
   },
+  // 저장소 없이 서비스 주소만으로 등록된 프로젝트. 소유 확인 배지도, GitHub 메타도 붙지 않는다.
+  // 이 경로가 화면에서 깨지지 않는지 확인하려고 일부러 하나 넣어둔다.
+  {
+    slug: "jariitda",
+    name: "자리있다",
+    tagline: "빈 스터디룸을 실시간으로 알려주는 웹서비스",
+    category: "WEB",
+    tags: ["웹서비스", "토이프로젝트"],
+    repoUrl: null,
+    demoUrl: "https://jariitda.example.com",
+    language: null,
+    stars: 0,
+  },
 ];
 
 async function main() {
+  assertSafeTarget();
+
+  // 목록이 어긋나면 db:purge 가 지우지 못하는 데모 데이터가 생긴다. 여기서 바로 잡는다.
+  const declared = new Set<string>(SEED_PROJECT_SLUGS);
+  const missing = PROJECTS.filter((p) => !declared.has(p.slug)).map((p) => p.slug);
+  if (missing.length > 0) {
+    throw new Error(
+      `seed-manifest.ts 의 SEED_PROJECT_SLUGS 에 없는 슬러그: ${missing.join(", ")}\n` +
+        "purge 가 지우지 못하므로 매니페스트에 추가해주세요.",
+    );
+  }
+
   console.log("시드 데이터를 넣습니다…");
 
   // 기존 데이터를 지운다. 참조 순서 때문에 자식부터.
@@ -103,9 +176,9 @@ async function main() {
     NAMES.map((name, i) =>
       db.user.create({
         data: {
-          id: `seed-user-${i}`,
+          id: `${SEED_USER_ID_PREFIX}${i}`,
           name,
-          email: `seed${i}@example.com`,
+          email: `seed${i}${SEED_EMAIL_DOMAIN}`,
           emailVerified: true,
           profile: {
             create: {
@@ -137,27 +210,31 @@ async function main() {
         category: spec.category,
         tags: spec.tags,
         repoUrl: spec.repoUrl,
-        demoUrl: i % 2 === 0 ? `https://${spec.slug}.example.com` : null,
+        demoUrl: spec.demoUrl ?? (i % 2 === 0 ? `https://${spec.slug}.example.com` : null),
         ownerId: owner.id,
-        ownershipVerified: i % 3 !== 0,
+        // 저장소가 없으면 확인할 소유권도 없다.
+        ownershipVerified: spec.repoUrl ? i % 3 !== 0 : false,
         status: "PUBLISHED",
         publishedAt,
         members: { create: { userId: owner.id, role: "OWNER" } },
-        snapshot: {
-          create: {
-            owner: spec.repoUrl.split("/")[3]!,
-            repo: spec.repoUrl.split("/")[4]!,
-            description: spec.tagline,
-            stars: spec.stars,
-            forks: Math.floor(spec.stars / 7),
-            openIssues: i * 3,
-            primaryLanguage: spec.language,
-            languages: { [spec.language]: 80000, CSS: 12000, HTML: 4000 },
-            license: "MIT",
-            topics: spec.tags.map((t) => t.toLowerCase()),
-            pushedAt: daysFromNow(-i * 2),
-          },
-        },
+        snapshot:
+          spec.repoUrl && spec.language
+            ? {
+                create: {
+                  owner: spec.repoUrl.split("/")[3]!,
+                  repo: spec.repoUrl.split("/")[4]!,
+                  description: spec.tagline,
+                  stars: spec.stars,
+                  forks: Math.floor(spec.stars / 7),
+                  openIssues: i * 3,
+                  primaryLanguage: spec.language,
+                  languages: { [spec.language]: 80000, CSS: 12000, HTML: 4000 },
+                  license: "MIT",
+                  topics: spec.tags.map((t) => t.toLowerCase()),
+                  pushedAt: daysFromNow(-i * 2),
+                },
+              }
+            : undefined,
       },
     });
 
@@ -321,6 +398,7 @@ async function main() {
 
   console.log(`프로젝트 ${PROJECTS.length}개, 사용자 ${users.length}명을 넣었습니다.`);
   console.log(`관리자 계정: ${users[0]!.email}`);
+  console.log("실서비스를 열기 전에 npm run db:purge 로 이 데모 데이터를 지우세요.");
 }
 
 main()
