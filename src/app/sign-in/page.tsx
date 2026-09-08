@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 
@@ -42,6 +43,19 @@ export default async function SignInPage({
           <SignInButtons providers={enabled} callbackURL={safeNext(next)} />
         )}
       </div>
+
+      {/* 가입 시점에 무엇에 동의하는지 알 수 있어야 한다. 소셜 로그인 심사에서도 확인하는 항목이다. */}
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        로그인하면{" "}
+        <Link href="/about/terms" className="underline">
+          이용약관
+        </Link>
+        과{" "}
+        <Link href="/about/privacy" className="underline">
+          개인정보처리방침
+        </Link>
+        에 동의하는 것으로 봅니다.
+      </p>
     </div>
   );
 }

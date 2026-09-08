@@ -28,6 +28,10 @@ const serverSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 
+  // 약관·개인정보처리방침에 노출할 문의처. 비워두면 저장소 이슈 링크를 대신 보여준다.
+  // 카카오 비즈 앱 전환과 네이버 로그인 검수에서 문의 창구를 확인하므로, 배포 전에는 채울 것.
+  CONTACT_EMAIL: z.email("이메일 형식이 아닙니다").or(z.literal("")).optional(),
+
   // 최초 관리자를 만드는 경로. 콤마로 구분한 이메일 목록.
   // 여기 적힌 이메일로 로그인하면 관리자로 승격된다. 그 뒤로는 관리자가
   // 화면에서 다른 사람을 임명할 수 있으므로, 이 값은 부트스트랩 용도다.
@@ -72,6 +76,13 @@ export function bootstrapAdminEmails(env: ServerEnv): string[] {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * 약관·개인정보처리방침에 싣는 문의처. 없으면 null 이고, 화면은 저장소 이슈로 안내한다.
+ */
+export function contactEmail(): string | null {
+  return (serverEnv().CONTACT_EMAIL ?? "").trim() || null;
 }
 
 /**

@@ -18,6 +18,12 @@ export function SiteFooter() {
           <Link href="/about/reporting" className="hover:text-foreground">
             신고 정책
           </Link>
+          <Link href="/about/terms" className="hover:text-foreground">
+            이용약관
+          </Link>
+          <Link href="/about/privacy" className="hover:text-foreground">
+            개인정보처리방침
+          </Link>
         </nav>
       </div>
     </footer>
