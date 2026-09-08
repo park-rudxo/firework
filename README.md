@@ -182,22 +182,29 @@ npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`
 ### 명령어
 
 ```bash
-npm run dev         # 개발 서버
-npm run build       # 프로덕션 빌드
-npm run lint        # ESLint
-npm run typecheck   # tsc --noEmit
-npm test            # Vitest — 익명성 스키마, 추첨 결정성, 새니타이즈
-npm run e2e         # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
-npm run setup       # .env 생성 + 비밀키 채우기
-npm run doctor      # 왜 안 뜨는지 진단
-npm run db:up       # PostgreSQL 을 띄우고 준비될 때까지 대기
-npm run db:migrate  # 마이그레이션 생성·적용
-npm run db:seed     # 개발용 시드 데이터
-npm run db:studio   # Prisma Studio
+npm run dev          # 개발 서버
+npm run build        # 프로덕션 빌드
+npm run lint         # ESLint
+npm run typecheck    # tsc --noEmit
+npm test             # Vitest — 익명성 스키마, 추첨 결정성, 새니타이즈
+npm run e2e          # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
+npm run setup        # .env 생성 + 비밀키 채우기
+npm run doctor       # 왜 안 뜨는지 진단
+npm run deploy:check # 배포 직전 환경변수 점검
+npm run db:up        # PostgreSQL 을 띄우고 준비될 때까지 대기
+npm run db:migrate   # 마이그레이션 생성·적용
+npm run db:seed      # 개발용 시드 데이터
+npm run db:studio    # Prisma Studio
 ```
 
 E2E 는 시드가 들어간 DB 를 전제로 한다. 브라우저가 이미 깔린 환경(CI 러너, 샌드박스)에서는
 `PLAYWRIGHT_CHROMIUM_PATH` 로 실행 파일 경로를 넘기면 새로 내려받지 않는다.
+
+### 배포
+
+Vercel + Neon 기준 단계별 절차는 [`docs/DEPLOY.md`](docs/DEPLOY.md) 에 있다.
+올리기 전에 `npm run deploy:check` 로 콜백 URL·자격증명·관리자 설정을 먼저 확인한다 —
+여기서 잡히는 것들은 대부분 배포 후에 사용자가 먼저 밟아야 드러나는 종류다.
 
 로그인 뒤의 흐름(설문 제출, 추첨 실행)은 소셜 OAuth 가 필요해 E2E 로 재현하지 않는다.
 그쪽은 순수 함수 단위 테스트와 스키마 검사로 덮는다 — 추첨은 부수효과 없는 함수라 결정성을

@@ -21,8 +21,11 @@ next-env.d.ts
 /src/generated
 
 # env
+# 배포용 값을 .env.production 같은 파일에 모아두는 경우가 있어 통째로 막고
+# 예시 파일만 되돌린다. 실수로 시크릿이 커밋되는 쪽이 훨씬 비싸다.
 .env
-.env*.local
+.env*
+!.env.example
 
 # misc
 .DS_Store
