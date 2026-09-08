@@ -48,7 +48,11 @@ export function SignInButtons({
             onClick={async () => {
               setPending(provider);
               try {
-                await signIn.social({ provider, callbackURL });
+                await signIn.social({
+                  provider,
+                  callbackURL,
+                  errorCallbackURL: "/sign-in/error",
+                });
               } finally {
                 setPending(null);
               }
