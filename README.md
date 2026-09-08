@@ -185,6 +185,16 @@ npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`
 동의 항목이나 콜백을 고친 뒤에는 프로바이더 쪽 기존 동의를 한 번 해제하고 다시
 로그인해야 새 항목을 물어본다. `.env` 를 고친 뒤에는 개발 서버를 다시 시작해야 한다.
 
+**`redirect_uri_mismatch` (구글 400 오류)** 는 자격증명이 아니라 콜백 주소 문제다.
+Better Auth 는 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 를 그대로 보내므로,
+그 문자열이 콘솔에 **글자 그대로** 있어야 한다. `npm run doctor` 가 지금 설정으로
+보내는 주소를 출력한다. 자주 어긋나는 곳:
+
+- 구글 콘솔의 **승인된 JavaScript 원본**에 넣고 **승인된 리디렉션 URI** 칸은 비워둔 경우
+- 끝에 붙은 `/`, `http`/`https`, `localhost` 와 `127.0.0.1`
+- 클라이언트를 여러 개 만들어 놓고 다른 클라이언트의 ID 를 `.env` 에 넣은 경우
+- 저장 직후 — 구글은 반영에 몇 분 걸릴 때가 있다
+
 로그인이 실패하면 `/sign-in/error` 가 Better Auth 의 에러 코드를 무엇이 어긋났을 때
 나오는 것인지로 풀어서 보여준다.
 

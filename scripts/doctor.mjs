@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { config } from "dotenv";
-import { PROVIDERS, isConfigured, setupLines } from "./providers.mjs";
+import { PROVIDERS, callbackUrl, isConfigured, origin, setupLines } from "./providers.mjs";
 
 /**
  * 왜 안 뜨는지 한 번에 알려준다.
@@ -62,8 +62,26 @@ const configured = PROVIDERS.filter((p) => isConfigured(p, process.env));
 const notConfigured = PROVIDERS.filter((p) => !isConfigured(p, process.env));
 
 for (const p of PROVIDERS) {
-  if (isConfigured(p, process.env)) ok(`${p.label} — 자격증명 있음`);
-  else bad(`${p.label} — ${p.envPrefix}_CLIENT_ID / ${p.envPrefix}_CLIENT_SECRET 비어 있음`);
+  if (isConfigured(p, process.env)) {
+    ok(`${p.label} — 자격증명 있음`);
+    // 자격증명이 맞아도 콜백 주소가 한 글자 다르면 프로바이더가 로그인 화면조차
+    // 띄우지 않고 redirect_uri_mismatch 로 막는다. 무엇을 등록해야 하는지는
+    // 켜진 뒤에 오히려 더 필요한 정보다.
+    info(`  콜백: ${callbackUrl(p, process.env)}`);
+  } else {
+    bad(`${p.label} — ${p.envPrefix}_CLIENT_ID / ${p.envPrefix}_CLIENT_SECRET 비어 있음`);
+  }
+}
+
+if (configured.length > 0) {
+  info("");
+  info("위 콜백 주소가 프로바이더 콘솔에 '글자 그대로' 등록돼 있어야 합니다.");
+  info("한 글자라도 다르면 redirect_uri_mismatch (또는 그에 해당하는 오류) 로 막힙니다.");
+  info("자주 어긋나는 곳: 끝의 슬래시, http/https, localhost 와 127.0.0.1,");
+  info("그리고 Google 은 '승인된 JavaScript 원본' 이 아니라 '승인된 리디렉션 URI' 칸입니다.");
+  info("");
+  info(`이 주소는 BETTER_AUTH_URL(${origin(process.env)}) 로 만듭니다.`);
+  info("접속하는 주소를 바꾸면 이 값과 콘솔 등록도 같이 바꿔야 합니다.");
 }
 
 if (configured.length === 0) {
