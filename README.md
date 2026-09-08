@@ -113,20 +113,48 @@ SSAFY에서는 관통·특화·자율 프로젝트에 토이 프로젝트까지 
 ## 시작하기
 
 ```bash
-cp .env.example .env          # 값을 채운다 (최소 DATABASE_URL, BETTER_AUTH_SECRET, 소셜 하나)
-npm install
-docker compose up -d          # PostgreSQL 18
-npm run db:migrate            # 스키마 적용
+git clone https://github.com/park-rudxo/firework.git
+cd firework
+
+cp .env.example .env                        # 1) 먼저 복사한다 (아래 이유 참고)
+openssl rand -base64 32                     #    출력값을 .env 의 BETTER_AUTH_SECRET 에 넣는다
+
+docker compose up -d                        # 2) PostgreSQL 18
+npm ci                                      # 3) npm install 이 아니라 ci
+npm run db:deploy                           # 4) 스키마 적용
+npm run db:seed                             # 5) 데모 데이터 (선택이지만 권장)
 npm run dev
 ```
 
-`BETTER_AUTH_SECRET`은 `openssl rand -base64 32`로 만든다.
+http://localhost:3000 을 열면 프로젝트 6개가 들어있는 상태로 뜬다.
 
-소셜 로그인 콜백 URL은 모두 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 형태다.
+**순서가 중요하다.** `npm ci` 의 `postinstall` 이 `prisma generate` 를 부르고, 그게
+`DATABASE_URL` 을 읽는다. `.env` 가 없으면 설치가 거기서 실패한다.
 
-`GITHUB_TOKEN`(public repo 읽기 전용 PAT)이 없으면 저장소 메타 수집이 시간당 60회로 제한된다. 있으면 5,000회.
+**`npm install` 말고 `npm ci`** 를 쓴다. `npm install` 은 의존성 트리를 다시 풀면서
+npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`)를 밟을 수
+있다. `npm ci` 는 락파일을 그대로 설치하므로 그 경로를 타지 않는다.
 
-`ADMIN_EMAILS`에 본인 이메일을 넣어두면 그 계정으로 로그인할 때 관리자가 된다. 비워두면 신고 큐를 열 수 있는 사람이 아무도 없다.
+### 로그인 없이 볼 수 있는 것
+
+소셜 로그인을 하나도 설정하지 않아도 **홈·둘러보기·프로젝트 상세·일정·정책 문서**는
+그대로 열린다. 시드 데이터가 들어있으면 큐레이션 섹션도 채워진다.
+
+설문 응답·추첨 응모·프로젝트 등록처럼 로그인이 필요한 화면을 보려면 소셜 프로바이더를
+최소 하나 설정해야 한다. 가장 빠른 건 GitHub 이다(업로더 인증에도 어차피 필요하다).
+
+1. https://github.com/settings/developers → **New OAuth App**
+2. Homepage URL `http://localhost:3000`
+3. Authorization callback URL `http://localhost:3000/api/auth/callback/github`
+4. 발급된 Client ID / Secret 을 `.env` 의 `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 에 넣는다
+
+다른 프로바이더의 콜백 URL도 형태는 같다 — `{BETTER_AUTH_URL}/api/auth/callback/{provider}`.
+
+`ADMIN_EMAILS` 에 적힌 이메일로 로그인하면 관리자가 된다. 단 **이메일이 검증된 계정**
+(Google·GitHub)이어야 승격된다. 비워두면 신고 큐를 열 수 있는 사람이 아무도 없다.
+
+`GITHUB_TOKEN`(public repo 읽기 전용 PAT)이 없으면 저장소 메타 수집이 시간당 60회로
+제한된다. 있으면 5,000회.
 
 ### 명령어
 
