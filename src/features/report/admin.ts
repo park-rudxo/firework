@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
+import { notify } from "@/features/notification/create";
 
 export type AdminState = { error: string | null };
 
@@ -39,9 +40,19 @@ export async function resolveReport(_prev: AdminState, form: FormData): Promise<
   const { action, note } = parsed.data;
 
   if (action !== "REJECT" && report.targetType === "PROJECT") {
-    await db.project.update({
+    const project = await db.project.update({
       where: { id: report.targetId },
       data: { status: action === "HIDE" ? "HIDDEN" : "REMOVED" },
+      select: { ownerId: true, name: true, slug: true },
+    });
+
+    // 조치를 당한 사람이 이유를 모르면 이의를 제기할 수도 없다.
+    await notify({
+      userId: project.ownerId,
+      type: "REPORT_RESOLVED",
+      title: action === "HIDE" ? `${project.name} 이 숨김 처리되었습니다` : `${project.name} 이 삭제되었습니다`,
+      body: note ?? "신고 검토 결과에 따른 조치입니다. 이의가 있다면 문의해주세요.",
+      url: `/projects/${project.slug}/edit`,
     });
   }
   if (action !== "REJECT" && report.targetType === "PROJECT_EVENT") {

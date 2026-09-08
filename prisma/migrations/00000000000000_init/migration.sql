@@ -34,6 +34,9 @@ CREATE TYPE "ReportSeverity" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL', 'INFO');
 -- CreateEnum
 CREATE TYPE "ReportStatus" AS ENUM ('OPEN', 'REVIEWING', 'ACTION_TAKEN', 'REJECTED');
 
+-- CreateEnum
+CREATE TYPE "NotificationType" AS ENUM ('RAFFLE_WON', 'RAFFLE_READY_TO_DRAW', 'RAFFLE_CONTACT_SUBMITTED', 'SURVEY_THRESHOLD_REACHED', 'REPORT_FILED', 'REPORT_RESOLVED', 'BROKEN_LINK_REPORTED', 'ADMIN_GRANTED');
+
 -- CreateTable
 CREATE TABLE "user" (
     "id" TEXT NOT NULL,
@@ -329,6 +332,20 @@ CREATE TABLE "report" (
     CONSTRAINT "report_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "notification" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "type" "NotificationType" NOT NULL,
+    "title" TEXT NOT NULL,
+    "body" TEXT,
+    "url" TEXT,
+    "readAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notification_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "user_email_key" ON "user"("email");
 
@@ -446,6 +463,12 @@ CREATE INDEX "report_targetType_targetId_idx" ON "report"("targetType", "targetI
 -- CreateIndex
 CREATE UNIQUE INDEX "report_targetType_targetId_reporterId_key" ON "report"("targetType", "targetId", "reporterId");
 
+-- CreateIndex
+CREATE INDEX "notification_userId_readAt_idx" ON "notification"("userId", "readAt");
+
+-- CreateIndex
+CREATE INDEX "notification_userId_createdAt_idx" ON "notification"("userId", "createdAt");
+
 -- AddForeignKey
 ALTER TABLE "session" ADD CONSTRAINT "session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -532,3 +555,6 @@ ALTER TABLE "report" ADD CONSTRAINT "report_reporterId_fkey" FOREIGN KEY ("repor
 
 -- AddForeignKey
 ALTER TABLE "report" ADD CONSTRAINT "report_resolvedById_fkey" FOREIGN KEY ("resolvedById") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notification" ADD CONSTRAINT "notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE ON UPDATE CASCADE;

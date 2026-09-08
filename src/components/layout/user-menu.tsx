@@ -70,9 +70,14 @@ export function UserMenu({ viewer }: { viewer: Viewer | null }) {
               프로필 설정
             </MenuLink>
             {viewer.isAdmin ? (
-              <MenuLink href="/admin/reports" icon={ShieldCheck} onClick={() => setOpen(false)}>
-                신고 관리
-              </MenuLink>
+              <>
+                <MenuLink href="/admin/reports" icon={ShieldCheck} onClick={() => setOpen(false)}>
+                  신고 관리
+                </MenuLink>
+                <MenuLink href="/admin/users" icon={ShieldCheck} onClick={() => setOpen(false)}>
+                  관리자 관리
+                </MenuLink>
+              </>
             ) : null}
 
             <button

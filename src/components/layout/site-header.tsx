@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, Compass, Sparkles } from "lucide-react";
 
 import { getViewer } from "@/lib/session";
+import { NotificationBell } from "@/components/notification/notification-bell";
 import { UserMenu } from "@/components/layout/user-menu";
 
 const nav = [
@@ -33,7 +34,8 @@ export async function SiteHeader() {
           ))}
         </nav>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          {viewer ? <NotificationBell userId={viewer.id} /> : null}
           <UserMenu viewer={viewer} />
         </div>
       </div>

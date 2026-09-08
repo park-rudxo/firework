@@ -7,6 +7,8 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
 import { bumpStat } from "@/features/curation/stats";
+import { notify } from "@/features/notification/create";
+import { MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
 import {
   answersFromFormData,
   buildAnswerSchema,
@@ -44,7 +46,8 @@ export async function submitSurveyResponse(
       opensAt: true,
       closesAt: true,
       questions: true,
-      project: { select: { id: true, slug: true, status: true, ownerId: true } },
+      title: true,
+      project: { select: { id: true, slug: true, status: true, ownerId: true, name: true } },
     },
   });
 
@@ -113,6 +116,22 @@ export async function submitSurveyResponse(
   // 응답 행에 시간이 없으므로 기간별 집계는 이 카운터로만 낸다.
   // 개인과 연결되지 않는 합계라서 익명성을 해치지 않는다.
   await bumpStat(survey.project.id, "surveyResponses");
+
+  // **응답이 올 때마다 제작자에게 알리지 않는다.** 그렇게 하면 제작자가 응답이
+  // 도착한 시각을 알게 되고, 응답 행에서 시간을 지워둔 의미가 그 알림 하나로
+  // 되살아난다("방금 A한테 부탁했는데 5분 뒤 알림이 왔다").
+  // 임계에 도달해 개별 응답을 볼 수 있게 된 순간에만 한 번 알린다.
+  const responseCount = await db.surveyResponse.count({ where: { surveyId } });
+  if (responseCount === MIN_RESPONSES_TO_REVEAL) {
+    await notify({
+      userId: survey.project.ownerId,
+      type: "SURVEY_THRESHOLD_REACHED",
+      title: "이제 개별 피드백을 볼 수 있습니다",
+      body: `${survey.project.name} — 응답이 ${MIN_RESPONSES_TO_REVEAL}건 모였습니다.`,
+      url: `/dashboard/projects/${survey.project.slug}/feedback`,
+    });
+  }
+
   revalidatePath(`/projects/${survey.project.slug}`);
 
   return { ok: true, error: null, enteredRaffle: Boolean(openRaffle) };

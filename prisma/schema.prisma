@@ -40,6 +40,7 @@ model User {
   raffleEntries        RaffleEntry[]
   reportsFiled         Report[]              @relation("Reporter")
   reportsResolved      Report[]              @relation("ReportResolver")
+  notifications        Notification[]
 
   @@map("user")
 }
@@ -582,4 +583,43 @@ model Report {
   @@index([status, severity, createdAt])
   @@index([targetType, targetId])
   @@map("report")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 알림 (사이트 내부 전용)
+//
+// 무엇을 알리지 "않는가" 가 이 기능의 핵심이다.
+// 설문에 새 응답이 들어올 때마다 제작자에게 알리면, 제작자는 응답이 도착한
+// 시각을 알게 된다. 응답 행에서 시간을 지워둔 의미가 그 알림으로 되살아난다.
+// "방금 A한테 써달라고 부탁했는데 5분 뒤 알림이 왔다" 는 추론이 가능해진다.
+// 그래서 개별 응답 알림은 만들지 않고, 임계(3건)에 도달했을 때 한 번만 알린다.
+// ─────────────────────────────────────────────────────────────
+
+enum NotificationType {
+  RAFFLE_WON // 당첨자에게
+  RAFFLE_READY_TO_DRAW // 제작자에게, 응모 마감
+  RAFFLE_CONTACT_SUBMITTED // 제작자에게, 당첨자가 연락처를 냄
+  SURVEY_THRESHOLD_REACHED // 제작자에게, 개별 응답을 볼 수 있게 됨
+  REPORT_FILED // 관리자에게
+  REPORT_RESOLVED // 제작자에게, 조치 결과
+  BROKEN_LINK_REPORTED // 제작자에게
+  ADMIN_GRANTED // 관리자로 임명됨
+}
+
+model Notification {
+  id     String           @id @default(uuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   NotificationType
+
+  title String
+  body  String?
+  url   String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notification")
 }
