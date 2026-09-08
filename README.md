@@ -187,8 +187,23 @@ npm 10 의 arborist 버그(`Cannot read properties of null (reading 'edgesOut')`
 
 **`redirect_uri_mismatch` (구글 400 오류)** 는 자격증명이 아니라 콜백 주소 문제다.
 Better Auth 는 `{BETTER_AUTH_URL}/api/auth/callback/{provider}` 를 그대로 보내므로,
-그 문자열이 콘솔에 **글자 그대로** 있어야 한다. `npm run doctor` 가 지금 설정으로
-보내는 주소를 출력한다. 자주 어긋나는 곳:
+그 문자열이 콘솔에 **글자 그대로** 있어야 한다.
+
+구글은 `npm run doctor` 가 **직접 물어봐서** 등록 여부를 알려준다 — 인가
+엔드포인트는 공개 GET 이고 client_id 는 인가 요청에 그대로 실려 나가는 공개
+값이라 시크릿 없이 확인된다. 브라우저를 열기 전에 답이 나온다.
+
+```
+  ✓ Google — 자격증명 있음
+      콜백: http://localhost:3000/api/auth/callback/google
+      GOOGLE_CLIENT_ID: 21047...apps.googleusercontent.com
+  ✗   ↳ Google 에 이 콜백이 등록돼 있지 않습니다
+```
+
+카카오·네이버·GitHub 은 이 확인을 하지 않는다. 응답 신호를 실제로 확인한 것이
+구글뿐이고, 검증하지 않은 판별기는 틀린 확신을 주기 때문이다.
+
+자주 어긋나는 곳:
 
 - 구글 콘솔의 **승인된 JavaScript 원본**에 넣고 **승인된 리디렉션 URI** 칸은 비워둔 경우
 - 끝에 붙은 `/`, `http`/`https`, `localhost` 와 `127.0.0.1`

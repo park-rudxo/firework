@@ -126,3 +126,97 @@ export function setupLines(provider, env = process.env) {
     `  ! ${fill(provider.gotcha)}`,
   ];
 }
+
+/**
+ * 콜백이 콘솔에 등록됐는지 프로바이더에게 직접 물어본다.
+ *
+ * 자격증명과 주소가 다 맞아 보이는데도 redirect_uri_mismatch 로 막히는 상황은
+ * 화면만 봐서는 풀 수가 없다 — 브라우저를 열기 전에 답을 알 수 있으면 그 왕복이
+ * 통째로 사라진다. 인가 엔드포인트는 공개 GET 이고 client_id 는 인가 요청 URL 에
+ * 그대로 실려 나가는 공개 값이므로, 시크릿 없이 물어볼 수 있다.
+ *
+ * 구글만 넣는다. 실제로 응답을 확인하고 신호를 특정한 것이 구글뿐이기 때문이다.
+ * GitHub 은 스크립트에서 요청하면 403 으로 막혀 판별할 수 없고, 카카오·네이버는
+ * 확인할 자격증명이 없었다. 검증하지 않은 판별기는 틀린 확신을 주므로 넣지 않는다.
+ */
+const PROBES = {
+  google: {
+    /**
+     * 등록 안 된 URI: 302 Location 이 accounts.google.com/signin/oauth/error 이고
+     * authError(base64url) 안에 redirect_uri_mismatch 가 들어 있다.
+     * 등록된 URI: 로그인 화면(/v3/signin/identifier)으로 간다.
+     *
+     * @param {string} clientId
+     * @param {string} redirectUri
+     */
+    url: (clientId, redirectUri) =>
+      "https://accounts.google.com/o/oauth2/v2/auth" +
+      `?client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      "&response_type=code&scope=openid%20email%20profile",
+    /** @param {string} location */
+    read: (location) => {
+      if (!location) return "unknown";
+      if (!location.includes("signin/oauth/error")) return "ok";
+      // client_id 가 아예 없으면 다른 오류(invalid_client)가 온다. 구분해서 알려준다.
+      return /redirect_uri_mismatch/.test(decodeAuthError(location)) ? "mismatch" : "other";
+    },
+  },
+};
+
+/**
+ * 구글이 Location 에 실어 보내는 authError 는 base64url 로 감싼 protobuf 라
+ * 통째로 해석할 수는 없지만, 사람이 읽을 문자열은 그대로 들어 있다.
+ *
+ * @param {string} location
+ */
+function decodeAuthError(location) {
+  const raw = /authError=([^&]+)/.exec(location)?.[1];
+  if (!raw) return "";
+  try {
+    return Buffer.from(decodeURIComponent(raw), "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+export function hasProbe(provider) {
+  return provider.id in PROBES;
+}
+
+/**
+ * 응답의 Location 하나로 결론을 낸다. 네트워크에서 떼어놔야 실제로 받아본
+ * 문자열을 그대로 테스트에 박아둘 수 있다 — 프로바이더가 신호를 바꾸면
+ * 그 테스트가 먼저 깨진다.
+ *
+ * @param {string} providerId
+ * @param {string} location
+ * @returns {"ok" | "mismatch" | "other" | "unknown"}
+ */
+export function classifyProbeLocation(providerId, location) {
+  const probe = PROBES[providerId];
+  return probe ? probe.read(location) : "unknown";
+}
+
+/**
+ * @param {(typeof PROVIDERS)[number]} provider
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {Promise<"ok" | "mismatch" | "other" | "unknown">}
+ *   ok = 등록돼 있음, mismatch = 등록 안 됨, other = 다른 이유로 거부,
+ *   unknown = 판단 못 함(네트워크 실패 등). 진단을 막지 않으려고 예외는 삼킨다.
+ */
+export async function probeRedirectUri(provider, env = process.env) {
+  const probe = PROBES[provider.id];
+  const clientId = env[`${provider.envPrefix}_CLIENT_ID`];
+  if (!probe || !clientId) return "unknown";
+
+  try {
+    const res = await fetch(probe.url(clientId, callbackUrl(provider, env)), {
+      redirect: "manual",
+      signal: AbortSignal.timeout(8000),
+    });
+    return classifyProbeLocation(provider.id, res.headers.get("location") ?? "");
+  } catch {
+    return "unknown";
+  }
+}

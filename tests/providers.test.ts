@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { configuredProviders, enabledProviders, type ServerEnv } from "@/lib/env";
 import { PROVIDER_ENV_KEYS, PROVIDER_IDS, PROVIDER_LABEL, callbackPath } from "@/lib/providers";
-import { PROVIDERS, callbackUrl, isConfigured, setupLines } from "../scripts/providers.mjs";
+import {
+  PROVIDERS,
+  callbackUrl,
+  classifyProbeLocation,
+  isConfigured,
+  setupLines,
+} from "../scripts/providers.mjs";
 
 const base = {
   DATABASE_URL: "postgresql://x",
@@ -91,5 +97,45 @@ describe("설정 안내", () => {
   it("isConfigured 는 env.ts 와 같은 기준을 쓴다", () => {
     expect(isConfigured(kakao, { KAKAO_CLIENT_ID: "a", KAKAO_CLIENT_SECRET: " " })).toBe(false);
     expect(isConfigured(kakao, { KAKAO_CLIENT_ID: "a", KAKAO_CLIENT_SECRET: "b" })).toBe(true);
+  });
+});
+
+/**
+ * 아래 두 문자열은 실제 구글 응답의 Location 을 그대로 옮긴 것이다.
+ * 구글이 신호를 바꾸면 doctor 가 조용히 "확인됨" 을 찍는 대신 여기가 먼저 깨진다.
+ */
+describe("콜백 등록 여부 판별", () => {
+  const MISMATCH =
+    "https://accounts.google.com/signin/oauth/error?authError=ChVyZWRpcmVjdF91cmlfbWlzbWF0Y2gSsAEKWW91" +
+    "IGNhbid0IHNpZ24gaW4gdG8gdGhpcyBhcHA&flowName=GeneralOAuthFlow&client_id=21047070877-x.apps.google" +
+    "usercontent.com";
+  const OK =
+    "https://accounts.google.com/v3/signin/identifier?opparams=%253F&dsh=S-417356254%3A1788836916541163" +
+    "&client_id=21047070877-x.apps.googleusercontent.com";
+
+  it("등록 안 된 콜백은 mismatch 로 읽는다", () => {
+    expect(classifyProbeLocation("google", MISMATCH)).toBe("mismatch");
+  });
+
+  it("등록된 콜백은 로그인 화면으로 가고 ok 로 읽는다", () => {
+    expect(classifyProbeLocation("google", OK)).toBe("ok");
+  });
+
+  it("redirect_uri 가 아닌 이유로 거부되면 mismatch 라고 하지 않는다", () => {
+    // invalid_client 를 base64 로 감싼 형태. 문구가 달라도 mismatch 로 오인하면 안 된다.
+    const other = `https://accounts.google.com/signin/oauth/error?authError=${Buffer.from(
+      "invalid_client The OAuth client was not found.",
+    ).toString("base64")}`;
+    expect(classifyProbeLocation("google", other)).toBe("other");
+  });
+
+  it("Location 이 없으면 판단하지 않는다", () => {
+    expect(classifyProbeLocation("google", "")).toBe("unknown");
+  });
+
+  it("판별기를 확인하지 않은 프로바이더는 묻지 않는다", () => {
+    // 검증하지 않은 판별기는 틀린 확신을 준다. 없으면 없다고 답해야 한다.
+    expect(classifyProbeLocation("kakao", MISMATCH)).toBe("unknown");
+    expect(classifyProbeLocation("naver", OK)).toBe("unknown");
   });
 });

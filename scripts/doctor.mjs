@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { config } from "dotenv";
-import { PROVIDERS, callbackUrl, isConfigured, origin, setupLines } from "./providers.mjs";
+import {
+  PROVIDERS,
+  callbackUrl,
+  hasProbe,
+  isConfigured,
+  origin,
+  probeRedirectUri,
+  setupLines,
+} from "./providers.mjs";
 
 /**
  * 왜 안 뜨는지 한 번에 알려준다.
@@ -72,6 +80,21 @@ for (const p of PROVIDERS) {
     // 콘솔 목록에서 어느 항목을 열어야 하는지 대조할 수 있게 ID 를 같이 찍는다.
     // Client ID 는 인가 요청 URL 에 그대로 실려 나가는 공개 값이다 — 시크릿은 찍지 않는다.
     info(`  ${p.envPrefix}_CLIENT_ID: ${process.env[`${p.envPrefix}_CLIENT_ID`]}`);
+
+    // 등록 여부는 추측할 게 아니라 물어보면 된다. 인가 엔드포인트는 공개 GET 이고
+    // client_id 는 공개 값이라 시크릿 없이 확인된다. 판별기를 실제로 확인한
+    // 프로바이더에만 묻고, 실패하면 조용히 넘어간다 — 진단을 막을 일이 아니다.
+    if (hasProbe(p)) {
+      const result = await probeRedirectUri(p, process.env);
+      if (result === "ok") info(`  ↳ ${p.label} 에 이 콜백이 등록돼 있습니다 (직접 물어봄)`);
+      else if (result === "mismatch") {
+        bad(`  ↳ ${p.label} 에 이 콜백이 등록돼 있지 않습니다`);
+        info(`     위 CLIENT_ID 와 같은 항목을 콘솔에서 열어 '승인된 리디렉션 URI' 에`);
+        info(`     ${callbackUrl(p, process.env)} 를 그대로 추가해주세요.`);
+      } else if (result === "other") {
+        bad(`  ↳ ${p.label} 이 이 클라이언트를 거부했습니다 — CLIENT_ID 를 확인해주세요`);
+      }
+    }
   } else {
     bad(`${p.label} — ${p.envPrefix}_CLIENT_ID / ${p.envPrefix}_CLIENT_SECRET 비어 있음`);
   }
