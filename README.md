@@ -126,6 +126,9 @@ npm run dev
 
 http://localhost:3000 을 열면 프로젝트 6개가 들어있는 상태로 뜬다.
 
+**안 뜨면 `npm run doctor`.** 연결 문자열이 실제로 어디를 가리키는지, 그 데이터베이스에
+테이블이 있는지, 시드가 들어갔는지를 확인해서 다음에 칠 명령을 알려준다.
+
 `npm run setup` 은 node 내장 모듈만 쓰므로 `npm ci` 전에도 돌아간다. 이미 있는 `.env`
 는 건드리지 않고, 비밀키가 이미 채워져 있으면 덮어쓰지 않는다.
 
@@ -167,6 +170,7 @@ npm run typecheck   # tsc --noEmit
 npm test            # Vitest — 익명성 스키마, 추첨 결정성, 새니타이즈
 npm run e2e         # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
 npm run setup       # .env 생성 + 비밀키 채우기
+npm run doctor      # 왜 안 뜨는지 진단
 npm run db:migrate  # 마이그레이션 생성·적용
 npm run db:seed     # 개발용 시드 데이터
 npm run db:studio   # Prisma Studio
