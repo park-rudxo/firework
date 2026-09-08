@@ -117,7 +117,7 @@ git clone https://github.com/park-rudxo/firework.git
 cd firework
 
 npm run setup                               # 1) .env 를 만들고 비밀키를 채운다
-docker compose up -d                        # 2) PostgreSQL 18
+npm run db:up                               # 2) PostgreSQL 18 — 준비될 때까지 기다린다
 npm ci                                      # 3) npm install 이 아니라 ci
 npm run db:deploy                           # 4) 스키마 적용
 npm run db:seed                             # 5) 데모 데이터 (선택이지만 권장)
@@ -125,6 +125,21 @@ npm run dev
 ```
 
 http://localhost:3000 을 열면 프로젝트 6개가 들어있는 상태로 뜬다.
+
+**볼륨 경로가 남아 있어 컨테이너가 안 뜨면** 볼륨을 지우고 다시 만든다. `postgres:18`
+부터 데이터 경로가 바뀌어서(`/var/lib/postgresql/data` → `/var/lib/postgresql`),
+예전 설정으로 만들어진 볼륨이 남아 있으면 기동에 실패한다.
+
+```bash
+docker compose down -v      # 볼륨까지 지운다 (개발용이라 안전)
+npm run db:up
+npm run db:deploy && npm run db:seed
+```
+
+`docker compose up -d` 는 컨테이너를 띄우기만 하고 **준비될 때까지 기다리지 않는다.**
+첫 실행은 Postgres 가 데이터 디렉터리를 초기화하느라 몇 초 걸리는데, 그 사이에
+`db:deploy` 를 돌리면 연결이 거절된다. `npm run db:up` 은 `--wait` 로 healthcheck 가
+통과할 때까지 기다린 뒤 반환한다.
 
 **안 뜨면 `npm run doctor`.** 연결 문자열이 실제로 어디를 가리키는지, 그 데이터베이스에
 테이블이 있는지, 시드가 들어갔는지를 확인해서 다음에 칠 명령을 알려준다.
@@ -171,6 +186,7 @@ npm test            # Vitest — 익명성 스키마, 추첨 결정성, 새니�
 npm run e2e         # Playwright — 공개 화면 흐름 (DB 에 시드가 필요하다)
 npm run setup       # .env 생성 + 비밀키 채우기
 npm run doctor      # 왜 안 뜨는지 진단
+npm run db:up       # PostgreSQL 을 띄우고 준비될 때까지 대기
 npm run db:migrate  # 마이그레이션 생성·적용
 npm run db:seed     # 개발용 시드 데이터
 npm run db:studio   # Prisma Studio

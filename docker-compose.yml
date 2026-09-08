@@ -1,6 +1,6 @@
 # 로컬 개발용 PostgreSQL 18.
-#   docker compose up -d
-#   npm run db:migrate
+#   npm run db:up        (docker compose up -d --wait — 준비될 때까지 기다린다)
+#   npm run db:deploy
 services:
   postgres:
     image: postgres:18
@@ -13,7 +13,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - firework-pgdata:/var/lib/postgresql/data
+      # postgres:18 부터 PGDATA 가 /var/lib/postgresql/18/docker 로, 선언된 VOLUME 이
+      # /var/lib/postgresql 로 바뀌었다. 예전처럼 .../data 에 마운트하면 데이터가
+      # 익명 볼륨으로 새고 컨테이너가 제대로 뜨지 못한다.
+      # https://github.com/docker-library/postgres/issues/1370
+      - firework-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U firework -d firework"]
       interval: 5s
