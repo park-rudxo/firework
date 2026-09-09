@@ -103,15 +103,20 @@ export default async function AdminReportsPage() {
                         {project.name}
                       </Link>{" "}
                       <span className="text-muted-foreground">
-                        ({project.status}) ·{" "}
-                        <a
-                          href={project.repoUrl}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow"
-                          className="underline"
-                        >
-                          저장소
-                        </a>
+                        ({project.status})
+                        {project.repoUrl ? (
+                          <>
+                            {" · "}
+                            <a
+                              href={project.repoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow"
+                              className="underline"
+                            >
+                              저장소
+                            </a>
+                          </>
+                        ) : null}
                       </span>
                     </p>
                   ) : (

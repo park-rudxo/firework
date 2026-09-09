@@ -18,7 +18,7 @@ export default async function ProjectOpsPage({ params }: { params: Promise<{ slu
   const { slug } = await params;
 
   const viewer = await getViewer();
-  if (!viewer) redirect(`/sign-in?next=/dashboard/projects/${slug}`);
+  if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(`/dashboard/projects/${slug}`)}`);
 
   const project = await db.project.findUnique({
     where: { slug },

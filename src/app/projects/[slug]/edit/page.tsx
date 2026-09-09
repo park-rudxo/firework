@@ -20,7 +20,7 @@ export default async function EditProjectPage({
   const { created } = await searchParams;
 
   const viewer = await getViewer();
-  if (!viewer) redirect(`/sign-in?next=/projects/${slug}/edit`);
+  if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(`/projects/${slug}/edit`)}`);
 
   const project = await db.project.findUnique({
     where: { slug },
@@ -54,7 +54,7 @@ export default async function EditProjectPage({
 
       {created ? (
         <p className="mt-4 rounded-xl border border-success/40 bg-success/5 p-3.5 text-sm">
-          등록됐습니다. GitHub 정보를 가져왔어요. 내용을 다듬고 <strong>공개</strong>를 눌러주세요.
+          등록됐습니다. 내용을 다듬고 <strong>공개</strong>를 눌러주세요.
         </p>
       ) : null}
 
@@ -64,7 +64,7 @@ export default async function EditProjectPage({
         </p>
       ) : null}
 
-      {!project.ownershipVerified ? (
+      {project.repoUrl && !project.ownershipVerified ? (
         <p className="mt-4 rounded-xl border border-border bg-surface-muted p-3.5 text-sm text-muted-foreground">
           연결된 GitHub 계정이 이 저장소의 소유자나 협업자로 확인되지 않아 <strong>소유 미확인</strong>
           으로 표시됩니다. 조직 저장소인 경우에도 이렇게 나올 수 있습니다.
@@ -80,15 +80,15 @@ export default async function EditProjectPage({
       <ProjectForm
         mode="edit"
         slug={slug}
-        githubLogin={viewer.githubLogin ?? ""}
+        githubLogin={viewer.githubLogin}
         values={{
           name: project.name,
           tagline: project.tagline,
-          description: project.description,
-          category: project.category,
-          tags: project.tags,
-          repoUrl: project.repoUrl,
           demoUrl: project.demoUrl,
+          category: project.category,
+          description: project.description,
+          repoUrl: project.repoUrl,
+          tags: project.tags,
           iconUrl: project.iconUrl,
           screenshots: project.screenshots,
         }}

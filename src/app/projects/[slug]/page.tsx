@@ -130,15 +130,16 @@ export default async function ProjectDetailPage({
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <ExternalLinkButton href={project.repoUrl} projectId={project.id} primary>
-          <GithubMark className="size-4" />
-          GitHub
+        {/* 써보러 가는 것이 이 서비스의 첫 동작이라 데모를 앞에 둔다. */}
+        <ExternalLinkButton href={project.demoUrl} projectId={project.id} primary>
+          <ExternalLink className="size-4" aria-hidden />
+          데모 열기
         </ExternalLinkButton>
 
-        {project.demoUrl ? (
-          <ExternalLinkButton href={project.demoUrl} projectId={project.id}>
-            <ExternalLink className="size-4" aria-hidden />
-            데모 열기
+        {project.repoUrl ? (
+          <ExternalLinkButton href={project.repoUrl} projectId={project.id}>
+            <GithubMark className="size-4" />
+            GitHub
           </ExternalLinkButton>
         ) : null}
 

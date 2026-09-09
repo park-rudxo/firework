@@ -20,7 +20,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ slug: s
   if (!project || project.status !== "PUBLISHED") notFound();
 
   const viewer = await getViewer();
-  if (!viewer) redirect(`/sign-in?next=/projects/${slug}/survey`);
+  if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(`/projects/${slug}/survey`)}`);
 
   const survey = await getOpenSurvey(project.id);
   if (!survey) {

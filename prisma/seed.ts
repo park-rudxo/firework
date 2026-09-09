@@ -137,6 +137,9 @@ async function main() {
   for (const [i, spec] of PROJECTS.entries()) {
     const owner = users[i % users.length]!;
     const publishedAt = daysFromNow(-(30 - i * 4));
+    // 데모는 필수, 저장소는 선택이다. 저장소 없는 프로젝트도 한 건 만들어 상세 화면이
+    // 그 경우에 어떻게 보이는지 바로 확인할 수 있게 한다.
+    const repoUrl = i === PROJECTS.length - 1 ? null : spec.repoUrl;
 
     const project = await db.project.create({
       data: {
@@ -146,28 +149,34 @@ async function main() {
         description: `## ${spec.name}\n\n${spec.tagline}\n\n### 이렇게 써보세요\n\n1. 저장소를 클론합니다\n2. \`npm install\` 후 \`npm run dev\`\n3. 브라우저에서 열어봅니다\n\n피드백은 언제든 환영입니다.`,
         category: spec.category,
         tags: spec.tags,
-        repoUrl: spec.repoUrl,
-        demoUrl: i % 2 === 0 ? `https://${spec.slug}.example.com` : null,
+        demoUrl: `https://${spec.slug}.example.com`,
+        repoUrl,
         ownerId: owner.id,
-        ownershipVerified: i % 3 !== 0,
+        // 저장소가 없으면 확인할 대상 자체가 없다.
+        ownershipVerified: repoUrl !== null && i % 3 !== 0,
         status: "PUBLISHED",
         publishedAt,
         members: { create: { userId: owner.id, role: "OWNER" } },
-        snapshot: {
-          create: {
-            owner: spec.repoUrl.split("/")[3]!,
-            repo: spec.repoUrl.split("/")[4]!,
-            description: spec.tagline,
-            stars: spec.stars,
-            forks: Math.floor(spec.stars / 7),
-            openIssues: i * 3,
-            primaryLanguage: spec.language,
-            languages: { [spec.language]: 80000, CSS: 12000, HTML: 4000 },
-            license: "MIT",
-            topics: spec.tags.map((t) => t.toLowerCase()),
-            pushedAt: daysFromNow(-i * 2),
-          },
-        },
+        // 스냅샷은 GitHub 에서 받아온 정보라 저장소가 있을 때만 존재한다.
+        ...(repoUrl
+          ? {
+              snapshot: {
+                create: {
+                  owner: repoUrl.split("/")[3]!,
+                  repo: repoUrl.split("/")[4]!,
+                  description: spec.tagline,
+                  stars: spec.stars,
+                  forks: Math.floor(spec.stars / 7),
+                  openIssues: i * 3,
+                  primaryLanguage: spec.language,
+                  languages: { [spec.language]: 80000, CSS: 12000, HTML: 4000 },
+                  license: "MIT",
+                  topics: spec.tags.map((t) => t.toLowerCase()),
+                  pushedAt: daysFromNow(-i * 2),
+                },
+              },
+            }
+          : {}),
       },
     });
 

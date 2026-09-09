@@ -12,7 +12,7 @@ import {
   SNAPSHOT_TTL_MS,
   verifyOwnership,
 } from "@/lib/github";
-import { requireGithubLinkedViewer, requireViewer } from "@/lib/session";
+import { requireVerifiedViewer, requireViewer } from "@/lib/session";
 import {
   projectInputFromFormData,
   projectInputSchema,
@@ -39,7 +39,7 @@ export async function createProject(
   form: FormData,
 ): Promise<ActionState> {
   // UI 에서 게이트를 걸어두더라도 Server Action 은 직접 호출될 수 있다. 방어는 여기서 한다.
-  const viewer = await requireGithubLinkedViewer();
+  const viewer = await requireVerifiedViewer();
 
   const parsed = projectInputSchema.safeParse(projectInputFromFormData(form));
   if (!parsed.success) {
@@ -50,25 +50,32 @@ export async function createProject(
   }
   const input = parsed.data;
 
-  const ref = parseRepoUrl(input.repoUrl)!;
+  // 저장소는 선택이다. 넣었을 때만 중복 검사·스냅샷·소유권 확인이 따라붙는다.
+  const ref = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
 
-  const existing = await db.project.findFirst({
-    where: { repoUrl: canonicalRepoUrl(ref), status: { not: "REMOVED" } },
-    select: { slug: true },
-  });
-  if (existing) {
-    return { error: "이미 등록된 저장소입니다." };
+  if (ref) {
+    const existing = await db.project.findFirst({
+      where: { repoUrl: canonicalRepoUrl(ref), status: { not: "REMOVED" } },
+      select: { slug: true },
+    });
+    if (existing) return { error: "이미 등록된 저장소입니다." };
   }
 
-  let snapshot;
-  try {
-    snapshot = await fetchRepoSnapshot(ref);
-  } catch (err) {
-    if (err instanceof GithubError) return { error: err.message };
-    throw err;
+  let snapshot = null;
+  if (ref) {
+    try {
+      snapshot = await fetchRepoSnapshot(ref);
+    } catch (err) {
+      if (err instanceof GithubError) return { error: err.message };
+      throw err;
+    }
   }
 
-  const ownershipVerified = await verifyOwnership(ref, viewer.githubLogin).catch(() => false);
+  // GitHub 계정을 연결하지 않았으면 확인할 근거가 없다. 그때는 미확인으로 둔다.
+  const ownershipVerified =
+    ref && viewer.githubLogin
+      ? await verifyOwnership(ref, viewer.githubLogin).catch(() => false)
+      : false;
 
   const slug = await uniqueSlug(input.name);
 
@@ -80,7 +87,7 @@ export async function createProject(
       description: input.description,
       category: input.category,
       tags: input.tags,
-      repoUrl: canonicalRepoUrl(ref),
+      repoUrl: ref ? canonicalRepoUrl(ref) : null,
       demoUrl: input.demoUrl,
       iconUrl: input.iconUrl,
       screenshots: input.screenshots,
@@ -90,27 +97,33 @@ export async function createProject(
       members: {
         create: { userId: viewer.id, role: "OWNER" },
       },
-      snapshot: {
-        create: {
-          owner: snapshot.owner,
-          repo: snapshot.repo,
-          description: snapshot.description,
-          stars: snapshot.stars,
-          forks: snapshot.forks,
-          openIssues: snapshot.openIssues,
-          primaryLanguage: snapshot.primaryLanguage,
-          languages: snapshot.languages,
-          license: snapshot.license,
-          topics: snapshot.topics,
-          archived: snapshot.archived,
-          pushedAt: snapshot.pushedAt,
-          readmeHtml: snapshot.readmeHtml,
-        },
-      },
+      ...(snapshot
+        ? {
+            snapshot: {
+              create: {
+                owner: snapshot.owner,
+                repo: snapshot.repo,
+                description: snapshot.description,
+                stars: snapshot.stars,
+                forks: snapshot.forks,
+                openIssues: snapshot.openIssues,
+                primaryLanguage: snapshot.primaryLanguage,
+                languages: snapshot.languages,
+                license: snapshot.license,
+                topics: snapshot.topics,
+                archived: snapshot.archived,
+                pushedAt: snapshot.pushedAt,
+                readmeHtml: snapshot.readmeHtml,
+              },
+            },
+          }
+        : {}),
     },
   });
 
-  redirect(`/projects/${slug}/edit?created=1`);
+  // 슬러그에는 한글이 그대로 남는다(slugify 참고). 리다이렉트는 Location 헤더로 나가는데
+  // 헤더에는 ASCII 만 실을 수 있어서, 인코딩하지 않으면 등록 마지막 단계에서 500 이 난다.
+  redirect(`/projects/${encodeURIComponent(slug)}/edit?created=1`);
 }
 
 export async function updateProject(
@@ -135,8 +148,8 @@ export async function updateProject(
     };
   }
   const input = parsed.data;
-  const ref = parseRepoUrl(input.repoUrl)!;
-  const nextRepoUrl = canonicalRepoUrl(ref);
+  const nextRef = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
+  const nextRepoUrl = nextRef ? canonicalRepoUrl(nextRef) : null;
 
   await db.project.update({
     where: { id: project.id },
@@ -154,8 +167,13 @@ export async function updateProject(
   });
 
   // 저장소를 바꿨다면 스냅샷은 낡은 것이므로 즉시 다시 받는다.
+  // 저장소를 지웠다면 남은 스냅샷은 다른 저장소의 정보이므로 같이 지운다.
   if (nextRepoUrl !== project.repoUrl) {
-    await refreshSnapshot(project.id, nextRepoUrl, { force: true });
+    if (nextRepoUrl) {
+      await refreshSnapshot(project.id, nextRepoUrl, { force: true });
+    } else {
+      await db.githubRepoSnapshot.deleteMany({ where: { projectId: project.id } });
+    }
   }
 
   revalidatePath(`/projects/${slug}`);
@@ -210,10 +228,10 @@ export async function unpublishProject(slug: string): Promise<ActionState> {
  */
 export async function refreshSnapshot(
   projectId: string,
-  repoUrl: string,
+  repoUrl: string | null,
   { force = false }: { force?: boolean } = {},
 ): Promise<void> {
-  const ref = parseRepoUrl(repoUrl);
+  const ref = repoUrl ? parseRepoUrl(repoUrl) : null;
   if (!ref) return;
 
   if (!force) {

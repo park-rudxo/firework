@@ -29,6 +29,12 @@ const repoUrl = z.string().refine((v) => parseRepoUrl(v) !== null, {
   message: "https://github.com/{소유자}/{저장소} 형태의 주소여야 합니다.",
 });
 
+/** 저장소는 선택이다. 비워두면 null 로 떨어뜨린다. */
+const optionalRepoUrl = z
+  .union([repoUrl, z.literal("")])
+  .transform((v) => (v === "" ? null : v))
+  .nullable();
+
 /**
  * 외부로 나가는 링크는 https 만 받는다.
  * javascript: 나 data: 스킴이 링크로 들어오는 경로를 여기서 끊는다.
@@ -51,21 +57,35 @@ const optionalHttpsUrl = z
   .transform((v) => (v === "" ? null : v))
   .nullable();
 
+/**
+ * 필드 순서가 곧 등록 화면의 순서다.
+ *
+ * 필수 다섯 개를 앞에 몰아두고 선택을 뒤로 뺀다. 데모 주소가 필수 자리에 있는 것이
+ * 이 서비스의 성격을 그대로 말해준다 — "둘러본다 → 써본다 → 피드백" 에서 써볼 곳이
+ * 없으면 나머지가 성립하지 않는다. 저장소는 반대로 없을 수도 있어서 선택이다.
+ */
 export const projectInputSchema = z.object({
+  // ── 필수 ──
   name: z.string().trim().min(2, "2자 이상 입력해주세요.").max(60),
   tagline: z
     .string()
     .trim()
     .min(5, "한 줄 소개는 5자 이상 적어주세요.")
     .max(120, "한 줄 소개는 120자를 넘길 수 없습니다."),
-  description: z.string().trim().max(20_000).default(""),
+  demoUrl: httpsUrl,
   category: z.enum(CATEGORIES),
+  description: z
+    .string()
+    .trim()
+    .min(1, "소개를 적어주세요.")
+    .max(20_000, "소개가 너무 깁니다."),
+
+  // ── 선택 ──
+  repoUrl: optionalRepoUrl,
   tags: z
     .array(z.string().trim().min(1).max(20))
     .max(8, "태그는 최대 8개까지입니다.")
     .default([]),
-  repoUrl,
-  demoUrl: optionalHttpsUrl,
   iconUrl: optionalHttpsUrl,
   screenshots: z.array(httpsUrl).max(6, "스크린샷은 최대 6장까지입니다.").default([]),
 });
@@ -86,15 +106,15 @@ export function projectInputFromFormData(form: FormData) {
   return {
     name: String(form.get("name") ?? ""),
     tagline: String(form.get("tagline") ?? ""),
-    description: String(form.get("description") ?? ""),
+    demoUrl: String(form.get("demoUrl") ?? "").trim(),
     category: String(form.get("category") ?? "ETC"),
+    description: String(form.get("description") ?? ""),
+    repoUrl: String(form.get("repoUrl") ?? "").trim(),
     tags: String(form.get("tags") ?? "")
       .split(",")
       .map((s) => s.trim().replace(/^#/, ""))
       .filter(Boolean),
-    repoUrl: String(form.get("repoUrl") ?? ""),
-    demoUrl: String(form.get("demoUrl") ?? ""),
-    iconUrl: String(form.get("iconUrl") ?? ""),
+    iconUrl: String(form.get("iconUrl") ?? "").trim(),
     screenshots: splitLines(form.get("screenshots")),
   };
 }

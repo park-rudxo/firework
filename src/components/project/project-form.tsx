@@ -10,11 +10,11 @@ const INITIAL: ActionState = { error: null };
 export type ProjectFormValues = {
   name: string;
   tagline: string;
-  description: string;
+  demoUrl: string;
   category: string;
+  description: string;
+  repoUrl: string | null;
   tags: string[];
-  repoUrl: string;
-  demoUrl: string | null;
   iconUrl: string | null;
   screenshots: string[];
 };
@@ -27,7 +27,8 @@ export function ProjectForm({
 }: {
   mode: "create" | "edit";
   slug?: string;
-  githubLogin: string;
+  /** 저장소 주소 placeholder 에만 쓴다. 연결하지 않았어도 등록은 된다. */
+  githubLogin: string | null;
   values?: ProjectFormValues;
 }) {
   const action =
@@ -47,16 +48,6 @@ export function ProjectForm({
       {mode === "edit" && !state.error && !pending ? null : null}
 
       <Field
-        label="GitHub 저장소"
-        name="repoUrl"
-        required
-        defaultValue={values?.repoUrl}
-        placeholder={`https://github.com/${githubLogin}/my-project`}
-        hint="스타·언어·README 를 여기서 가져옵니다. 공개 저장소여야 합니다."
-        errors={state.fieldErrors?.repoUrl}
-      />
-
-      <Field
         label="프로젝트 이름"
         name="name"
         required
@@ -74,8 +65,20 @@ export function ProjectForm({
         errors={state.fieldErrors?.tagline}
       />
 
+      <Field
+        label="데모 주소"
+        name="demoUrl"
+        required
+        defaultValue={values?.demoUrl}
+        placeholder="https://my-project.vercel.app"
+        hint="직접 써볼 수 있는 주소입니다. https 만 가능하고, 방문자에게는 외부 링크 경고가 함께 표시됩니다."
+        errors={state.fieldErrors?.demoUrl}
+      />
+
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">카테고리</span>
+        <span className="text-sm font-medium">
+          카테고리<span className="text-danger"> *</span>
+        </span>
         <select
           name="category"
           defaultValue={values?.category ?? "WEB"}
@@ -89,8 +92,36 @@ export function ProjectForm({
         </select>
       </label>
 
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">
+          소개 (마크다운)<span className="text-danger"> *</span>
+        </span>
+        <textarea
+          name="description"
+          rows={8}
+          required
+          defaultValue={values?.description}
+          placeholder="어떤 문제를 풀었는지, 어떻게 써보면 되는지 적어주세요."
+          className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+        />
+        {state.fieldErrors?.description ? (
+          <span className="text-xs text-danger">{state.fieldErrors.description.join(" ")}</span>
+        ) : null}
+      </label>
+
+      <hr className="border-border" />
+
       <Field
-        label="태그"
+        label="GitHub 저장소 (선택)"
+        name="repoUrl"
+        defaultValue={values?.repoUrl ?? ""}
+        placeholder={`https://github.com/${githubLogin ?? "my-team"}/my-project`}
+        hint="넣으면 스타·언어·README 를 함께 가져옵니다. 공개 저장소여야 합니다."
+        errors={state.fieldErrors?.repoUrl}
+      />
+
+      <Field
+        label="태그 (선택)"
         name="tags"
         defaultValue={values?.tags.join(", ")}
         placeholder="React, 협업툴, 관통프로젝트"
@@ -98,36 +129,17 @@ export function ProjectForm({
         errors={state.fieldErrors?.tags}
       />
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">소개 (마크다운)</span>
-        <textarea
-          name="description"
-          rows={8}
-          defaultValue={values?.description}
-          placeholder="어떤 문제를 풀었는지, 어떻게 써보면 되는지 적어주세요. README 는 자동으로 함께 표시됩니다."
-          className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-primary"
-        />
-      </label>
-
       <Field
-        label="데모 주소"
-        name="demoUrl"
-        defaultValue={values?.demoUrl ?? ""}
-        placeholder="https://my-project.vercel.app"
-        hint="https 만 가능합니다. 방문자에게는 외부 링크 경고가 함께 표시됩니다."
-        errors={state.fieldErrors?.demoUrl}
-      />
-
-      <Field
-        label="아이콘 이미지 주소"
+        label="아이콘 이미지 주소 (선택)"
         name="iconUrl"
         defaultValue={values?.iconUrl ?? ""}
         placeholder="https://…/icon.png"
+        hint="비워두면 프로젝트 이름 첫 글자로 아이콘을 만들어 씁니다."
         errors={state.fieldErrors?.iconUrl}
       />
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">스크린샷 주소</span>
+        <span className="text-sm font-medium">스크린샷 주소 (선택)</span>
         <textarea
           name="screenshots"
           rows={3}
@@ -148,7 +160,7 @@ export function ProjectForm({
       >
         {pending
           ? mode === "create"
-            ? "GitHub 에서 정보를 가져오는 중…"
+            ? "등록하는 중…"
             : "저장 중…"
           : mode === "create"
             ? "등록하기"

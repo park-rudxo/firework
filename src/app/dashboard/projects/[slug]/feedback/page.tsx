@@ -21,7 +21,7 @@ export default async function FeedbackPage({
   const { survey: surveyParam } = await searchParams;
 
   const viewer = await getViewer();
-  if (!viewer) redirect(`/sign-in?next=/dashboard/projects/${slug}/feedback`);
+  if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(`/dashboard/projects/${slug}/feedback`)}`);
 
   const project = await db.project.findUnique({
     where: { slug },
