@@ -3,10 +3,10 @@
  *
  * 이 서비스의 닉네임은 자기소개가 아니라 **소속 표기**다. 프로젝트 등록자와 일정
  * 작성자가 누구인지 한 줄로 드러나야 하고, 같은 반 사람끼리 서로를 찾을 수 있어야
- * 한다. "박경도" 만으로는 그게 안 되고, 동명이인이 생기면 구별할 방법도 없다.
+ * 한다. "김싸피" 만으로는 그게 안 되고, 동명이인이 생기면 구별할 방법도 없다.
  * 그래서 형식을 하나로 못박는다.
  *
- *     기수_지역_반_이름     예) 13_구미_1반_박경도
+ *     기수_지역_반_이름     예) 16_구미_1반_김싸피
  *
  * DB 와 화면에서 떼어놓아야 "어느 칸이 왜 틀렸는지" 를 테스트로 못박을 수 있다.
  * 저장은 features/profile/actions.ts 가, 강제는 lib/session.ts 와 app/layout.tsx 가 맡는다.
@@ -17,7 +17,7 @@ export const CAMPUSES = ["서울", "대전", "광주", "구미", "부울경"] as
 export type Campus = (typeof CAMPUSES)[number];
 
 export const NICKNAME_FORMAT = "기수_지역_반_이름";
-export const NICKNAME_EXAMPLE = "13_구미_1반_박경도";
+export const NICKNAME_EXAMPLE = "16_구미_1반_김싸피";
 
 /** 기수는 SSAFY 기수 범위. 프로필의 ssafyGeneration 과 같은 범위를 쓴다. */
 const MAX_GENERATION = 50;

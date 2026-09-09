@@ -48,7 +48,7 @@ export function NicknameFields({ defaultValue }: { defaultValue?: string }) {
             required
             value={generation}
             onChange={(e) => setGeneration(e.target.value)}
-            placeholder="13"
+            placeholder="16"
             className={field}
           />
         </label>
@@ -93,7 +93,7 @@ export function NicknameFields({ defaultValue }: { defaultValue?: string }) {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="박경도"
+            placeholder="김싸피"
             className={field}
           />
         </label>
