@@ -65,9 +65,14 @@ export async function requireViewer(): Promise<Viewer> {
 /**
  * 닉네임을 형식에 맞게 정한 사람만 통과시킨다.
  *
+ * 설문 응답과 추첨 응모, 프로젝트 등록처럼 계정을 여러 개 만들면 이득이 생기는 곳에
+ * 이 게이트가 선다. 예전에는 여기에 이메일 확인도 함께 걸었는데, 닉네임이
+ * 기수_지역_반_이름 이라 계정을 여러 개 만들려면 실명과 소속을 그만큼 써내야 한다.
+ * 같은 반 사람들이 보는 화면에서 그건 이메일 인증보다 강한 억제다.
+ * 반대로 이메일 확인은 카카오처럼 이메일을 주지 않는 프로바이더를 통째로 막았다.
+ *
  * 화면에서는 레이아웃이 /nickname 으로 돌려보내지만, Server Action 은 라우트를
- * 거치지 않고 직접 호출될 수 있다. 이메일 확인·GitHub 연결과 같은 자리에서
- * 실제 방어를 한 번 더 한다.
+ * 거치지 않고 직접 호출될 수 있으므로 실제 방어는 여기서 한다.
  */
 export async function requireNamedViewer(): Promise<Viewer> {
   const viewer = await requireViewer();
@@ -75,20 +80,6 @@ export async function requireNamedViewer(): Promise<Viewer> {
     throw new Error(
       `닉네임을 ${NICKNAME_FORMAT} 형식으로 먼저 정해주세요. 예) ${NICKNAME_EXAMPLE}`,
     );
-  }
-  return viewer;
-}
-
-/**
- * 이메일 확인까지 끝난 사람만 통과시킨다.
- *
- * 설문 응답과 추첨 응모, 프로젝트 등록처럼 계정을 여러 개 만들면 이득이 생기는
- * 곳에만 건다. 둘러보기나 좋아요까지 막으면 얻는 것 없이 진입만 막힌다.
- */
-export async function requireVerifiedViewer(): Promise<Viewer> {
-  const viewer = await requireNamedViewer();
-  if (!viewer.emailVerified) {
-    throw new Error("이메일 확인이 필요합니다. 설정에서 인증을 마쳐주세요.");
   }
   return viewer;
 }

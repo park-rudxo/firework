@@ -9,7 +9,6 @@ export const metadata: Metadata = { title: "프로젝트 등록" };
 export default async function NewProjectPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in?next=/projects/new");
-  if (!viewer.emailVerified) redirect("/verify-email?next=/projects/new");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">

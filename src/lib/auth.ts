@@ -24,6 +24,25 @@ if (available.kakao) {
   socialProviders.kakao = {
     clientId: env.KAKAO_CLIENT_ID!,
     clientSecret: env.KAKAO_CLIENT_SECRET!,
+    /**
+     * 카카오는 이메일을 안 줄 수 있다.
+     *
+     * 이메일 동의항목은 비즈 앱으로 전환해야 열리고, 열어둬도 사용자가 선택 동의를
+     * 거부하면 그만이다. 그런데 계정의 기본키 노릇을 하는 email 컬럼은 비어 있을 수
+     * 없어서, 그대로 두면 카카오 로그인이 계정 생성 단계에서 통째로 실패한다.
+     *
+     * 그래서 이메일을 받지 못하면 카카오 회원번호로 자리표시자를 만든다. 같은
+     * 사람은 늘 같은 값이 나오므로 재로그인해도 계정이 갈라지지 않고, 실제로 있는
+     * 주소가 아님이 도메인에 드러나 있다(RFC 2606 이 예약해둔 .invalid).
+     *
+     * 이 계정은 emailVerified 가 false 로 남는다. 관리자 승격이 검증된 이메일만
+     * 인정하므로(아래 syncBootstrapAdmin) 자리표시자로 관리자가 될 일은 없다.
+     */
+    mapProfileToUser: (profile) => {
+      const email = profile.kakao_account?.email;
+      if (email) return {};
+      return { email: `kakao-${profile.id}@no-email.invalid` };
+    },
   };
 }
 if (available.naver) {

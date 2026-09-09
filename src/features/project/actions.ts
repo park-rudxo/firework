@@ -12,7 +12,7 @@ import {
   SNAPSHOT_TTL_MS,
   verifyOwnership,
 } from "@/lib/github";
-import { requireVerifiedViewer, requireViewer } from "@/lib/session";
+import { requireNamedViewer, requireViewer } from "@/lib/session";
 import {
   projectInputFromFormData,
   projectInputSchema,
@@ -39,7 +39,7 @@ export async function createProject(
   form: FormData,
 ): Promise<ActionState> {
   // UI 에서 게이트를 걸어두더라도 Server Action 은 직접 호출될 수 있다. 방어는 여기서 한다.
-  const viewer = await requireVerifiedViewer();
+  const viewer = await requireNamedViewer();
 
   const parsed = projectInputSchema.safeParse(projectInputFromFormData(form));
   if (!parsed.success) {

@@ -66,7 +66,7 @@ export function UserMenu({
                   onClick={() => setOpen(false)}
                   className="mt-2 block rounded-lg bg-accent/10 px-2 py-1.5 text-xs text-accent"
                 >
-                  이메일 확인이 필요합니다 →
+                  이메일 확인하기 (선택) →
                 </Link>
               ) : null}
             </div>

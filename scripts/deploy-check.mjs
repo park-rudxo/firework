@@ -170,7 +170,8 @@ if (admins.length === 0) {
 console.log("\n이메일 인증");
 const resend = val("RESEND_API_KEY");
 if (!resend) {
-  warn("RESEND_API_KEY 가 없습니다", "인증 코드가 사용자 화면 대신 서버 로그로 갑니다. 네이버 로그인은 사실상 막힙니다.");
+  warn("RESEND_API_KEY 가 없습니다", "이메일 확인 코드가 사용자 화면 대신 서버 로그로 갑니다.");
+  info("확인은 선택이라 로그인·설문·등록은 그대로 됩니다. 관리자 승격에는 확인된 이메일이 필요합니다.");
   info("https://resend.com/api-keys (무료 3,000통/월)");
 } else {
   ok("RESEND_API_KEY 있음");
