@@ -208,3 +208,35 @@ export async function countPerUser(surveyId: string, userId: string) {
     return { participations: participations.rowCount ?? 0, entries: entries.rowCount ?? 0 };
   });
 }
+
+/** 연결된 Mattermost 계정을 다른 것으로 갈아끼운다. 초대 대상 고정 검증에 쓴다. */
+export async function reconnectMattermost(userId: string, newMattermostUserId: string) {
+  await withDb((db) =>
+    db.query(`UPDATE "MattermostIdentity" SET "mattermostUserId" = $2 WHERE "userId" = $1`, [
+      userId,
+      newMattermostUserId,
+    ]),
+  );
+}
+
+export async function disconnectMattermost(userId: string) {
+  await withDb((db) => db.query(`DELETE FROM "MattermostIdentity" WHERE "userId" = $1`, [userId]));
+}
+
+/** 초대와 멤버십의 최종 상태. 실패했을 때 아무것도 남지 않았는지 본다. */
+export async function readInviteState(projectId: string, userId: string) {
+  return withDb(async (db) => {
+    const invites = await db.query<{ status: string }>(
+      `SELECT status FROM project_invitation WHERE "projectId"=$1 AND "inviteeId"=$2`,
+      [projectId, userId],
+    );
+    const member = await db.query<{ role: string }>(
+      `SELECT role FROM project_member WHERE "projectId"=$1 AND "userId"=$2`,
+      [projectId, userId],
+    );
+    return {
+      statuses: invites.rows.map((r) => r.status),
+      memberRole: member.rows[0]?.role ?? null,
+    };
+  });
+}

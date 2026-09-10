@@ -163,47 +163,75 @@ export async function respondToInvitation(
       .safeParse(Object.fromEntries(form));
     if (!parsed.success) throw new CommunityError("잘못된 요청입니다.");
 
-    const invitation = await db.projectInvitation.findUnique({
-      where: { id: parsed.data.invitationId },
-      select: {
-        id: true,
-        inviteeId: true,
-        inviterId: true,
-        role: true,
-        status: true,
-        projectId: true,
-        project: { select: { slug: true, name: true, status: true, ownerId: true } },
-      },
-    });
-    // 남의 초대인지 없는 초대인지 구분해 알려주지 않는다.
-    if (!invitation || invitation.inviteeId !== viewer.id) {
-      throw new CommunityError("초대를 찾을 수 없습니다.");
-    }
-    if (invitation.status !== "PENDING") throw new CommunityError("이미 처리된 초대입니다.");
-
     const accepted = parsed.data.accept === "yes";
+    const invitationId = parsed.data.invitationId;
 
-    if (accepted) {
-      if (invitation.project.status === "REMOVED") {
-        throw new CommunityError("삭제된 프로젝트입니다.");
-      }
-      // 초대받은 뒤 연결을 해제했을 수 있다. 승인 시점에도 다시 확인한다.
-      const identity = await db.mattermostIdentity.findUnique({
-        where: { userId: viewer.id },
-        select: { userId: true },
+    // 판정과 쓰기를 전부 한 트랜잭션 안에서 한다. 밖에서 확인하고 안에서 쓰면,
+    // 그 사이에 계정 연결을 바꾸거나 초대를 취소해도 확인 결과가 그대로 통과한다.
+    const invitation = await db.$transaction(async (tx) => {
+      // 초대 행을 잠가 같은 초대에 대한 승인·취소·중복 승인을 한 줄로 세운다.
+      await tx.$queryRaw`SELECT id FROM "project_invitation" WHERE id = ${invitationId} FOR UPDATE`;
+
+      const found = await tx.projectInvitation.findUnique({
+        where: { id: invitationId },
+        select: {
+          id: true,
+          inviteeId: true,
+          inviterId: true,
+          inviteeMattermostUserId: true,
+          role: true,
+          status: true,
+          projectId: true,
+          project: { select: { slug: true, name: true, status: true, ownerId: true } },
+        },
       });
-      if (!identity) {
-        throw new CommunityError("Mattermost 계정 인증을 마친 뒤에 수락할 수 있습니다.");
+      // 남의 초대인지 없는 초대인지 구분해 알려주지 않는다.
+      if (!found || found.inviteeId !== viewer.id) {
+        throw new CommunityError("초대를 찾을 수 없습니다.");
       }
-      if (invitation.project.ownerId === viewer.id) {
-        throw new CommunityError("이미 이 프로젝트의 등록자입니다.");
-      }
-    }
+      if (found.status !== "PENDING") throw new CommunityError("이미 처리된 초대입니다.");
 
-    await db.$transaction(async (tx) => {
+      if (accepted) {
+        if (found.project.status === "REMOVED") {
+          throw new CommunityError("삭제된 프로젝트입니다.");
+        }
+        if (found.project.ownerId === viewer.id) {
+          throw new CommunityError("이미 이 프로젝트의 등록자입니다.");
+        }
+
+        // **초대는 계정이 아니라 그때 확인된 Mattermost 사용자에게 건 것이다.**
+        //
+        // 계정만 보면, A 로 인증받아 초대받은 뒤 A 연결을 끊고 B 를 붙여도 그 초대를
+        // 수락할 수 있다. 초대한 사람은 A 를 보고 초대했는데 팀에는 B 가 들어온다.
+        // 그래서 저장해둔 불변 id 와 지금 연결된 id 가 같은지까지 본다.
+        //
+        // 연결 행도 잠근다. 확인과 쓰기 사이에 연결을 해제하거나 갈아끼우면
+        // 확인 결과가 무의미해진다.
+        const locked = await tx.$queryRaw<{ mattermostUserId: string }[]>`
+          SELECT "mattermostUserId" FROM "MattermostIdentity" WHERE "userId" = ${viewer.id} FOR UPDATE
+        `;
+        const identity = locked[0];
+        if (!identity) {
+          throw new CommunityError("Mattermost 계정 인증을 마친 뒤에 수락할 수 있습니다.");
+        }
+        if (identity.mattermostUserId !== found.inviteeMattermostUserId) {
+          throw new CommunityError(
+            "초대받을 때와 다른 Mattermost 계정이 연결되어 있습니다. 초대한 사람에게 다시 요청해주세요.",
+          );
+        }
+
+        // 이미 팀원이면 역할을 덮어쓰지 않고 거절한다. upsert 로 덮으면 등록자가
+        // 정해둔 역할이 오래된 초대 한 장으로 바뀐다.
+        const existing = await tx.projectMember.findUnique({
+          where: { projectId_userId: { projectId: found.projectId, userId: viewer.id } },
+          select: { role: true },
+        });
+        if (existing) throw new CommunityError("이미 이 프로젝트의 팀원입니다.");
+      }
+
       // 상태 전환도 조건부다. 두 번 누르면 두 번째는 여기서 0건이 된다.
       const changed = await tx.projectInvitation.updateMany({
-        where: { id: invitation.id, inviteeId: viewer.id, status: "PENDING" },
+        where: { id: found.id, inviteeId: viewer.id, status: "PENDING" },
         data: {
           status: accepted ? "ACCEPTED" : "DECLINED",
           pendingInviteeId: null,
@@ -215,23 +243,23 @@ export async function respondToInvitation(
       if (accepted) {
         // 알림은 켜지 않는다(notifyManagement 기본 false). 팀원이 된 것과
         // 메시지를 받겠다는 것은 다른 일이고, 후자는 본인이 따로 켠다.
-        await tx.projectMember.upsert({
-          where: { projectId_userId: { projectId: invitation.projectId, userId: viewer.id } },
-          create: { projectId: invitation.projectId, userId: viewer.id, role: invitation.role },
-          update: { role: invitation.role },
+        await tx.projectMember.create({
+          data: { projectId: found.projectId, userId: viewer.id, role: found.role },
         });
       }
 
       await tx.notification.create({
         data: {
-          userId: invitation.inviterId,
+          userId: found.inviterId,
           type: "PROJECT_INVITE_ANSWERED",
           title: accepted
-            ? `${invitation.project.name} 팀 초대를 수락했습니다`
-            : `${invitation.project.name} 팀 초대를 거절했습니다`,
-          url: `/dashboard/projects/${encodeURIComponent(invitation.project.slug)}/team`,
+            ? `${found.project.name} 팀 초대를 수락했습니다`
+            : `${found.project.name} 팀 초대를 거절했습니다`,
+          url: `/dashboard/projects/${encodeURIComponent(found.project.slug)}/team`,
         },
       });
+
+      return found;
     });
 
     refresh(invitation.project.slug);
