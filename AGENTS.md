@@ -52,6 +52,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 2. **`prisma/schema.prisma` 는 한 번에 한 명만 만진다.** 마이그레이션이 갈라지면
    가장 고치기 어렵다. 만지기 전에 `HANDOFF.md` 에 적어 자리를 잡는다.
 3. **같은 파일을 동시에 고치지 않는다.** 담당 영역은 `HANDOFF.md` 에 있다.
+   작업 시작 전 `git status` 와 현재 브랜치를 확인한다. 같은 checkout을 동시에 쓰지 말고,
+   필요하면 각자 worktree를 사용한다. 완료·진행 중인 파일도 먼저 확인해 중복 구현을 막는다.
 
 ## 끝낼 때
 

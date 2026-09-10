@@ -1,40 +1,32 @@
 # 지금 상태
 
-> 이 파일은 기록이 아니라 **현재 상태**다. 이어받을 때 덮어쓴다.
-> 한 화면을 넘기면 필요 없는 것이 섞인 것이다.
+_마지막 갱신: 2026-09-10 · Astra_
 
-_마지막 갱신: 2026-09-10 · Claude_
+## 담당과 브랜치
 
-## 담당
+- **Astra:** 기획·설계·브랜치·병합. 구현 작업 중단.
+- **Claude:** 아래 브랜치에서 구현·수정·테스트 전담.
+- **작업 브랜치:** `claude/firework-reliability-team-invites` — 아래 통합 main에서 분기.
+- **스키마 담당:** Claude (팀 초대 작업). 다른 에이전트는 수정하지 않는다.
 
-계획·브랜치·병합은 Astra, 구현·테스트는 Claude. 자세한 것은 `AGENTS.md` 참고.
+## 통합 상태
 
-| 영역 | 담당 | 파일 |
-| --- | --- | --- |
-| Mattermost 연결·발송 | **Astra** | `src/features/mattermost/`, `src/app/api/mattermost/`, `src/app/api/internal/` |
-| 구독·버그·소식 | **Astra** | `src/features/community/` |
-| 큐레이션·설문·권한 | **Claude** | `src/features/curation/`, `src/features/survey/`, `src/features/project/permissions.ts` |
-| 스키마 | **비어 있음** | `prisma/schema.prisma` — 만지기 전에 여기에 이름을 적는다 |
+- 협업 문서 3개를 main에 반영했고 `astratest@7a5d50e`를 병합했다.
+- Mattermost·구독·버그·소식은 main의 구현이 기준. 기존 Claude 브랜치 전체를 병합하지 않는다.
+- 참고 원본: `origin/claude/inspiring-einstein-ao0b9b@747f21c`. 기능 커밋 `91b4a07`은 중복 구현을 포함하므로 통째로 cherry-pick하지 않는다.
 
-## 진행 중
+## Claude가 할 일 (순서대로, 커밋 분리)
 
-- `astratest` — Astra. Mattermost 봇 DM 발송, 구독·버그·소식. typecheck·lint·테스트 116개 통과 확인함
-- `claude/inspiring-einstein-ao0b9b` — Claude. 같은 기능을 따로 만든 것 + 신뢰성 수정. 테스트 157개, E2E 13개 통과
+1. 원본에서 인기 정렬 통일, 조회수 점수 제외, 익명성 문구·3건 묶음 공개, 설문·추첨·일정 권한 정리를 선별 이식한다.
+   공유 파일은 현재 main에 맞춰 수정한다. 기존 community 권한도 공통 판정에 연결하고 권한 로직을 두 벌로 만들지 않는다.
+   기존 Mattermost/구독/버그/소식 모델·큐·마이그레이션을 대체하지 않는다.
+2. Mattermost 인증 계정 대상 **팀 초대 → 본인 승인 → 멤버 등록**을 구현한다. 세부 계약은 DECISIONS 마지막 항목.
+3. typecheck·lint·단위 테스트·빌드·E2E. 권한 거절, 미승인 초대, 중복 승인, 구독 재가입 OFF, 발송 전 동의 철회를 검증한다.
 
-두 브랜치가 같은 기능을 각자 만들었다. 병합 방침은 `DECISIONS.md` 2026-09-10 항목에 있다.
+## 검증과 미확인
 
-## 막혀 있는 것
+- 기준 브랜치에서 단위 116개·공개 E2E 9개, 타입·린트·빌드 통과 이력 있음. DB 마이그레이션 기본 OFF/ID 유일성도 격리 DB에서 확인.
+- 로그인 브라우저 검증은 구독 해제·재구독·버그 접수까지 진행. 제작자 처리 상태 선택 locator에서 멈췄고, 재실행 시 중복 fixture로도 실패했다. 완료로 간주하지 말고 격리 fixture로 재검증.
+- 싸피 서버 OAuth 앱·전용 봇·DM 권한은 사용자도 미확인. 실제 인증/발송은 검증하지 않았으며 설정 없으면 비활성 상태를 유지한다.
 
-- **싸피 Mattermost 가 OAuth 앱 등록을 허용하는지 확인 안 됨.** 사람이 확인해야 한다.
-  설정이 없으면 연결 버튼을 띄우지 않으므로 이대로 배포해도 문제는 없다
-- **봇 계정 발급과 DM 권한도 미확인.** 위와 같은 사람 몫이다
-
-## 다음
-
-계획과 병합은 Astra 몫이다. 아래는 지금까지 합의된 순서일 뿐 확정된 일정이 아니다.
-
-1. `astratest` 를 `main` 에 병합 (Mattermost·구독·버그·소식의 기준이 된다)
-2. Claude 브랜치에서 인기 정렬·조회수 점수·익명성 문구·권한 정리만 골라 얹기
-3. 그 위에서 홈 3섹션 재구성, 운영 상태(개발 중·종료), 실행 형태(웹·확장·영상)
-
-**Astra 에게:** 2번을 어느 브랜치에서 할지 정하고 여기에 이름을 적어주면 Claude 가 이어받는다.
+작업 후 이 파일을 결과·커밋·남은 질문으로 갱신하고 지정 브랜치에 push한다. main 병합은 Astra에게 넘긴다.
