@@ -8,8 +8,9 @@ import { publishUpdate, setManagementNotifications, updateBug } from "@/features
 import { ActionForm } from "@/components/community/action-form";
 import { mattermostDeliveryConfigured } from "@/features/mattermost/config";
 const input = "w-full rounded-xl border border-border bg-background p-3";
-export default async function CommunityManagement({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CommunityManagement({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ joined?: string }> }) {
   const { slug } = await params;
+  const { joined } = await searchParams;
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in");
   const access = await projectAccess(slug, viewer.id).catch(() => null);
@@ -23,7 +24,12 @@ export default async function CommunityManagement({ params }: { params: Promise<
   return <div className="mx-auto max-w-3xl space-y-8 px-4 py-10">
     <Link href="/dashboard" className="text-sm underline">← 내 프로젝트</Link>
     <h1 className="text-2xl font-semibold">{project.name} · 소식·버그 관리</h1>
-    <Link href={`/projects/${slug}/community`} className="text-primary underline">사용자에게 보이는 소식 페이지 →</Link>
+    {/* 초대를 수락하면 여기로 온다. 합류했다는 사실이 화면으로 보여야 한다. */}
+    {joined ? <p role="status" className="rounded-xl border border-border bg-surface p-3.5 text-sm">팀에 합류했습니다. 알림은 꺼져 있으니 필요하면 아래에서 켜주세요.</p> : null}
+    <div className="flex flex-wrap gap-4">
+      <Link href={`/projects/${slug}/community`} className="text-primary underline">사용자에게 보이는 소식 페이지 →</Link>
+      {access.owner ? <Link href={`/dashboard/projects/${slug}/team`} className="text-primary underline">팀 관리 →</Link> : null}
+    </div>
     <section className="space-y-3 rounded-xl border border-border bg-surface p-5">
       <h2 className="font-semibold">내 관리 알림</h2>
       <ActionForm action={setManagementNotifications.bind(null, slug)}>

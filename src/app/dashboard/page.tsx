@@ -81,6 +81,14 @@ export default async function DashboardPage() {
 
               <div className="flex gap-2 text-sm">
                 <Link href={`/dashboard/projects/${project.slug}/community`} className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted">소식·버그</Link>
+                {project.ownerId === viewer.id ? (
+                  <Link
+                    href={`/dashboard/projects/${project.slug}/team`}
+                    className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted"
+                  >
+                    팀
+                  </Link>
+                ) : null}
                 {canManage(project.ownerId, viewer.id, project.members[0]?.role) ? <>
                 <Link
                   href={`/dashboard/projects/${project.slug}/feedback`}

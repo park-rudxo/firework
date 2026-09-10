@@ -42,6 +42,8 @@ model User {
   reportsResolved      Report[]              @relation("ReportResolver")
   notifications        Notification[]
   mattermostIdentity   MattermostIdentity?
+  invitationsSent      ProjectInvitation[]   @relation("InvitationInviter")
+  invitationsReceived  ProjectInvitation[]   @relation("InvitationInvitee")
   bugReports           BugReport[]
   projectUpdates       ProjectUpdate[]
   deliveries           MattermostDelivery[]
@@ -186,19 +188,20 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  members    ProjectMember[]
-  snapshot   GithubRepoSnapshot?
-  likes      ProjectLike[]
-  follows    ProjectFollow[]
-  tries      ProjectTry[]
-  stats      ProjectStatDaily[]
-  events     ProjectEvent[]
-  surveys    Survey[]
-  raffles    Raffle[]
-  featured   FeaturedSlot[]
-  updates    ProjectUpdate[]
-  bugs       BugReport[]
-  deliveries MattermostDelivery[]
+  members            ProjectMember[]
+  snapshot           GithubRepoSnapshot?
+  likes              ProjectLike[]
+  follows            ProjectFollow[]
+  tries              ProjectTry[]
+  stats              ProjectStatDaily[]
+  events             ProjectEvent[]
+  surveys            Survey[]
+  raffles            Raffle[]
+  featured           FeaturedSlot[]
+  updates            ProjectUpdate[]
+  bugs               BugReport[]
+  deliveries         MattermostDelivery[]
+  projectInvitations ProjectInvitation[]
 
   @@index([status, publishedAt])
   @@index([category, status])
@@ -638,6 +641,8 @@ model Report {
 enum NotificationType {
   BUG_REPORTED
   BUG_STATUS_CHANGED
+  PROJECT_INVITED // 초대받은 사람에게
+  PROJECT_INVITE_ANSWERED // 초대한 사람에게, 수락·거절 결과
   RAFFLE_WON // 당첨자에게
   RAFFLE_READY_TO_DRAW // 제작자에게, 응모 마감
   RAFFLE_CONTACT_SUBMITTED // 제작자에게, 당첨자가 연락처를 냄
@@ -755,4 +760,56 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
   @@map("notification")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 팀 초대
+//
+// 초대만으로 팀원이 되지 않는다. **본인이 승인해야 멤버십이 생긴다.**
+// 초대하는 쪽이 남의 계정을 남의 프로젝트에 밀어 넣을 수 있으면, 초대는 권한이 아니라
+// 스팸이 된다. 대기 중인 초대는 권한을 하나도 만들지 않는다.
+//
+// 대상은 Mattermost 계정을 연결해 인증을 마친 사람뿐이다. 닉네임은 본인이 적어내는
+// 값이라 동명이인과 사칭을 가려내지 못한다. 그래서 검색도 초대도 인증된 계정에만 건다.
+// ─────────────────────────────────────────────────────────────
+
+enum ProjectInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  /// 초대한 쪽이 거둬들임
+  CANCELLED
+}
+
+model ProjectInvitation {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  inviterId String
+  inviter   User   @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId String
+  invitee   User   @relation("InvitationInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  /// 초대 시점에 확인한 Mattermost 사용자 id.
+  /// 사용자명은 바뀌지만 이 값은 바뀌지 않는다. 초대를 사람에게 고정하는 것은 이쪽이다.
+  inviteeMattermostUserId String
+
+  /// OWNER 는 여기 들어오지 않는다. 소유권 이전은 초대와 다른 일이라 이번 범위 밖이다.
+  role   ProjectMemberRole
+  status ProjectInvitationStatus @default(PENDING)
+
+  /// PENDING 인 동안에만 inviteeId 와 같은 값을 담고, 나머지 상태에서는 NULL 이다.
+  /// Postgres 에서 NULL 은 서로 충돌하지 않으므로 아래 UNIQUE 가 곧
+  /// "한 사람에게 대기 중인 초대는 하나뿐" 이라는 제약이 된다.
+  /// 앱에서도 검사하지만, 동시 요청 두 개는 DB 만 막을 수 있다.
+  pendingInviteeId String?
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([projectId, pendingInviteeId])
+  @@index([inviteeId, status])
+  @@index([projectId, status])
+  @@map("project_invitation")
 }

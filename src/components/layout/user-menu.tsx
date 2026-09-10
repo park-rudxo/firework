@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Bug, Bell, LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon, UserPlus } from "lucide-react";
 
 import { SignInMenu } from "@/components/auth/sign-in-menu";
 import { signOut } from "@/lib/auth-client";
@@ -74,8 +74,9 @@ export function UserMenu({
             <MenuLink href="/dashboard" icon={LayoutDashboard} onClick={() => setOpen(false)}>
               대시보드
             </MenuLink>
-            <MenuLink href="/subscriptions" icon={LayoutDashboard} onClick={() => setOpen(false)}>내 구독 · 알림</MenuLink>
-            <MenuLink href="/bugs" icon={LayoutDashboard} onClick={() => setOpen(false)}>내 버그 신고</MenuLink>
+            <MenuLink href="/invitations" icon={UserPlus} onClick={() => setOpen(false)}>초대함</MenuLink>
+            <MenuLink href="/subscriptions" icon={Bell} onClick={() => setOpen(false)}>내 구독 · 알림</MenuLink>
+            <MenuLink href="/bugs" icon={Bug} onClick={() => setOpen(false)}>내 버그 신고</MenuLink>
             <MenuLink href="/settings/mattermost" icon={ShieldCheck} onClick={() => setOpen(false)}>Mattermost 인증</MenuLink>
             <MenuLink href="/settings/profile" icon={UserIcon} onClick={() => setOpen(false)}>
               프로필 설정

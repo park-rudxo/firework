@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Bell, Gift, Flag, MessageSquare, ShieldCheck, Link2Off } from "lucide-react";
+import { Bell, Flag, Gift, Link2Off, MessageSquare, ShieldCheck, UserPlus } from "lucide-react";
 import type { NotificationType } from "@prisma/client";
 
 import { MarkAllRead } from "@/components/notification/mark-all-read";
@@ -23,6 +23,8 @@ const ICON: Record<NotificationType, typeof Bell> = {
   REPORT_RESOLVED: Flag,
   BROKEN_LINK_REPORTED: Link2Off,
   ADMIN_GRANTED: ShieldCheck,
+  PROJECT_INVITED: UserPlus,
+  PROJECT_INVITE_ANSWERED: UserPlus,
 };
 
 export default async function NotificationsPage() {

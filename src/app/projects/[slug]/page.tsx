@@ -33,10 +33,13 @@ export async function generateMetadata({
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ joined?: string }>;
 }) {
   const { slug } = await params;
+  const { joined } = await searchParams;
   const viewer = await getViewer();
   const project = await getProjectBySlug(slug, viewer?.id);
   if (!project) notFound();
@@ -77,6 +80,12 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
+      {/* 팀원으로 초대를 수락하면 여기로 온다. */}
+      {joined ? (
+        <p role="status" className="mb-6 rounded-xl border border-border bg-surface p-3.5 text-sm">
+          팀에 합류했습니다. 알림은 꺼져 있으니 필요하면 직접 켜주세요.
+        </p>
+      ) : null}
       {project.status !== "PUBLISHED" ? (
         <p className="mb-6 rounded-xl border border-accent/40 bg-accent/5 p-3.5 text-sm">
           이 프로젝트는 아직 <strong>비공개</strong>입니다. 본인에게만 보입니다.{" "}
