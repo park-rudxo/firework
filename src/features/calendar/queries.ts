@@ -53,7 +53,7 @@ export async function listEvents({
 }: {
   from: Date;
   to: Date;
-  /** 지정하면 그 사용자가 관심 등록한 프로젝트의 일정만 본다. */
+  /** 지정하면 그 사용자가 구독한 프로젝트의 일정만 본다. */
   followedBy?: string;
   types?: ProjectEventType[];
 }) {

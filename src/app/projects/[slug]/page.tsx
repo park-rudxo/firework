@@ -4,15 +4,23 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, ExternalLink, Star, GitFork, Scale, Clock } from "lucide-react";
 
 import { GithubMark } from "@/components/icons/github-mark";
+import { BugReportForm } from "@/components/project/bug-report";
+import { MyBugReports } from "@/components/project/my-bug-reports";
 import { ProjectIcon } from "@/components/project/project-card";
 import { EngagementBanner, EventTimeline } from "@/components/project/project-engagement";
 import { ProjectReactions } from "@/components/project/project-reactions";
+import { ProjectUpdates } from "@/components/project/project-updates";
+import { SubscribeControls } from "@/components/project/subscribe-controls";
 import { ReportButton } from "@/components/report/report-button";
 import { Screenshots } from "@/components/project/screenshots";
 import { UntrustedHtml } from "@/components/project/untrusted-html";
+import { bugReportSummary, listMyBugReports } from "@/features/bug/queries";
 import { refreshSnapshot } from "@/features/project/actions";
+import { getProjectAccess } from "@/features/project/permissions";
 import { getProjectBySlug, getViewerReactions } from "@/features/project/queries";
 import { CATEGORY_LABEL } from "@/features/project/schema";
+import { getSubscriptionState } from "@/features/subscription/queries";
+import { listProjectUpdates } from "@/features/update/queries";
 import { bumpStat } from "@/features/curation/stats";
 import { listProjectEvents } from "@/features/calendar/queries";
 import { getOpenSurvey, hasResponded } from "@/features/survey/queries";
@@ -41,12 +49,24 @@ export default async function ProjectDetailPage({
   const project = await getProjectBySlug(slug, viewer?.id);
   if (!project) notFound();
 
-  const isOwner = viewer?.id === project.ownerId;
+  const access = await getProjectAccess(project, viewer?.id);
+  const isManager = access.canManage;
 
   // TTL(6시간)이 지났으면 조용히 갱신한다. 실패해도 기존 스냅샷으로 계속 보여준다.
   await refreshSnapshot(project.id, project.repoUrl);
 
-  const [reactions, descriptionHtml, readmeHtml, survey, events] = await Promise.all([
+  const [
+    reactions,
+    descriptionHtml,
+    readmeHtml,
+    survey,
+    events,
+    subscription,
+    updates,
+    bugs,
+    myBugs,
+    mattermost,
+  ] = await Promise.all([
     getViewerReactions(project.id, viewer?.id),
     project.description ? renderMarkdown(project.description) : Promise.resolve(""),
     // GitHub README 는 남이 쓴 HTML 이다. 렌더 직전에 반드시 정화한다.
@@ -55,6 +75,16 @@ export default async function ProjectDetailPage({
       : Promise.resolve(""),
     getOpenSurvey(project.id),
     listProjectEvents(project.id),
+    getSubscriptionState(project.id, viewer?.id),
+    listProjectUpdates(project.id),
+    bugReportSummary(project.id),
+    listMyBugReports(project.id, viewer?.id),
+    viewer
+      ? db.mattermostAccount.findUnique({
+          where: { userId: viewer.id },
+          select: { deliveryEnabled: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   // 설문이 열려 있을 때만 추첨과 응답 여부를 확인한다.
@@ -79,7 +109,7 @@ export default async function ProjectDetailPage({
     <div className="mx-auto max-w-4xl px-4 py-10">
       {project.status !== "PUBLISHED" ? (
         <p className="mb-6 rounded-xl border border-accent/40 bg-accent/5 p-3.5 text-sm">
-          이 프로젝트는 아직 <strong>비공개</strong>입니다. 본인에게만 보입니다.{" "}
+          이 프로젝트는 아직 <strong>비공개</strong>입니다. 관리 팀에게만 보입니다.{" "}
           <Link href={`/projects/${slug}/edit`} className="underline">
             공개하러 가기
           </Link>
@@ -143,9 +173,9 @@ export default async function ProjectDetailPage({
           </ExternalLinkButton>
         ) : null}
 
-        {isOwner ? (
+        {isManager ? (
           <Link
-            href={`/projects/${slug}/edit`}
+            href={`/dashboard/projects/${slug}`}
             className="rounded-xl border border-border px-4 py-2.5 text-sm hover:bg-surface-muted"
           >
             관리
@@ -153,7 +183,20 @@ export default async function ProjectDetailPage({
         ) : null}
 
         <div className="ml-auto flex items-center gap-2">
-          <ProjectReactions slug={slug} counts={project._count} initial={reactions} signedIn={Boolean(viewer)} />
+          <SubscribeControls
+            slug={slug}
+            initialSubscribed={subscription.subscribed}
+            initialTopics={subscription.topics}
+            subscriberCount={project._count.follows}
+            signedIn={Boolean(viewer)}
+            mattermostLinked={Boolean(mattermost?.deliveryEnabled)}
+          />
+          <ProjectReactions
+            slug={slug}
+            counts={{ likes: project._count.likes, tries: project._count.tries }}
+            initial={{ liked: reactions.liked, tried: reactions.tried }}
+            signedIn={Boolean(viewer)}
+          />
           <ReportButton targetType="PROJECT" targetId={project.id} signedIn={Boolean(viewer)} />
         </div>
       </div>
@@ -163,7 +206,7 @@ export default async function ProjectDetailPage({
         survey={survey ? { id: survey.id, title: survey.title, closesAt: survey.closesAt } : null}
         raffle={raffle}
         alreadyResponded={alreadyResponded}
-        isOwner={isOwner}
+        isOwner={isManager}
       />
 
       {project.snapshot ? (
@@ -220,6 +263,28 @@ export default async function ProjectDetailPage({
       ) : null}
 
       <EventTimeline events={events} />
+
+      <ProjectUpdates updates={updates} />
+
+      {/* ── 버그 제보 ──────────────────────────────────────
+          설문과 달리 상시 열려 있다. 제작자가 설문을 열어줘야만 피드백을 낼 수
+          있으면, 쓰다가 깨진 것을 전할 방법이 그동안 없다. */}
+      <section className="mt-10">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-lg font-semibold">버그 제보</h2>
+          {bugs.total > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              접수 {bugs.open}건 · 수정 완료 {bugs.fixed}건
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mt-3">
+          <BugReportForm slug={slug} signedIn={Boolean(viewer)} />
+        </div>
+
+        <MyBugReports reports={myBugs} />
+      </section>
 
       {descriptionHtml ? (
         <section className="mt-10">

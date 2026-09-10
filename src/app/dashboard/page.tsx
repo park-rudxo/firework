@@ -72,9 +72,9 @@ export default async function DashboardPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {CATEGORY_LABEL[project.category]} · 좋아요 {project._count.likes} · 관심{" "}
-                  {project._count.follows} · 써봄 {project._count.tries} · 설문{" "}
-                  {project._count.surveys} · 추첨 {project._count.raffles}
+                  {CATEGORY_LABEL[project.category]} · 구독 {project._count.follows} · 좋아요{" "}
+                  {project._count.likes} · 써봄 {project._count.tries} · 제보{" "}
+                  {project._count.bugReports} · 설문 {project._count.surveys}
                 </p>
               </div>
 

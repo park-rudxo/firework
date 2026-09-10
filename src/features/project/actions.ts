@@ -13,6 +13,8 @@ import {
   verifyOwnership,
 } from "@/lib/github";
 import { requireNamedViewer, requireViewer } from "@/lib/session";
+import { resolveOwnershipVerified } from "@/features/project/ownership";
+import { getProjectAccess } from "@/features/project/permissions";
 import {
   projectInputFromFormData,
   projectInputSchema,
@@ -138,7 +140,11 @@ export async function updateProject(
     select: { id: true, ownerId: true, repoUrl: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 수정할 수 있습니다." };
+
+  // 등록자 한 명이 아니라 관리 팀이 수정할 수 있다. 팀이 만든 프로젝트를 모으는
+  // 서비스에서 등록한 사람만 손댈 수 있으면, 그 사람이 바쁠 때 프로젝트가 멈춘다.
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canManage) return { error: "이 프로젝트의 관리 팀만 수정할 수 있습니다." };
 
   const parsed = projectInputSchema.safeParse(projectInputFromFormData(form));
   if (!parsed.success) {
@@ -150,6 +156,26 @@ export async function updateProject(
   const input = parsed.data;
   const nextRef = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
   const nextRepoUrl = nextRef ? canonicalRepoUrl(nextRef) : null;
+  const repoChanged = nextRepoUrl !== project.repoUrl;
+
+  // 등록 때와 같은 중복 검사를 수정에도 건다. 수정에만 검사가 없으면, 등록 화면에서
+  // 막힌 저장소를 아무 프로젝트나 만들어 수정으로 바꿔치기하면 그만이다.
+  if (repoChanged && nextRepoUrl) {
+    const existing = await db.project.findFirst({
+      where: { repoUrl: nextRepoUrl, status: { not: "REMOVED" }, id: { not: project.id } },
+      select: { slug: true },
+    });
+    if (existing) return { error: "이미 등록된 저장소입니다." };
+  }
+
+  // 저장소를 바꾸면 소유 확인 배지를 반드시 다시 계산한다.
+  // 규칙과 그 이유는 features/project/ownership.ts 에 적어뒀다.
+  const ownershipPatch = await resolveOwnershipVerified({
+    repoChanged,
+    nextRef,
+    githubLogin: viewer.githubLogin,
+    verify: verifyOwnership,
+  });
 
   await db.project.update({
     where: { id: project.id },
@@ -163,12 +189,13 @@ export async function updateProject(
       demoUrl: input.demoUrl,
       iconUrl: input.iconUrl,
       screenshots: input.screenshots,
+      ...ownershipPatch,
     },
   });
 
   // 저장소를 바꿨다면 스냅샷은 낡은 것이므로 즉시 다시 받는다.
   // 저장소를 지웠다면 남은 스냅샷은 다른 저장소의 정보이므로 같이 지운다.
-  if (nextRepoUrl !== project.repoUrl) {
+  if (repoChanged) {
     if (nextRepoUrl) {
       await refreshSnapshot(project.id, nextRepoUrl, { force: true });
     } else {
@@ -187,7 +214,9 @@ export async function publishProject(slug: string): Promise<ActionState> {
     select: { id: true, ownerId: true, status: true, publishedAt: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 공개할 수 있습니다." };
+  // 공개 여부는 되돌리기 어려운 결정이라 등록자(OWNER)만 정한다.
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canAdminister) return { error: "등록자만 공개할 수 있습니다." };
   if (project.status === "HIDDEN" || project.status === "REMOVED") {
     return { error: "관리자 조치 중인 프로젝트는 공개할 수 없습니다." };
   }
@@ -213,7 +242,8 @@ export async function unpublishProject(slug: string): Promise<ActionState> {
     select: { id: true, ownerId: true, status: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 되돌릴 수 있습니다." };
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canAdminister) return { error: "등록자만 되돌릴 수 있습니다." };
   if (project.status !== "PUBLISHED") return { error: null };
 
   await db.project.update({ where: { id: project.id }, data: { status: "DRAFT" } });

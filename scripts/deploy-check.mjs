@@ -188,6 +188,29 @@ if (!val("GITHUB_TOKEN")) {
   ok("GITHUB_TOKEN 있음 (시간당 5,000회)");
 }
 
+// ── 8. Mattermost ──────────────────────────────────────────
+console.log("\nMattermost");
+const mmParts = ["MATTERMOST_URL", "MATTERMOST_CLIENT_ID", "MATTERMOST_CLIENT_SECRET"];
+const mmFilled = mmParts.filter((k) => val(k));
+if (mmFilled.length === 0) {
+  warn(
+    "Mattermost 연동이 없습니다",
+    "구독·소식·버그 제보는 그대로 동작하고 알림은 사이트 안에만 쌓입니다. 채팅으로 받으려면 싸피 Mattermost 에서 OAuth 앱 등록이 가능한지 먼저 확인하세요.",
+  );
+} else if (mmFilled.length < mmParts.length) {
+  // 일부만 채워두면 버튼은 뜨는데 눌러도 안 되는 상태가 된다.
+  // 없는 것보다 알아채기 어렵다.
+  bad(
+    `Mattermost 설정이 반쯤 채워져 있습니다 (${mmParts.filter((k) => !val(k)).join(", ")} 없음)`,
+    "셋 다 채우거나 셋 다 비워두세요.",
+  );
+} else {
+  ok(`Mattermost 연동 있음 (${val("MATTERMOST_URL")})`);
+  console.log(
+    `  콜백 URL 을 Mattermost 앱에 등록했는지 확인하세요: ${val("BETTER_AUTH_URL")}/api/mattermost/callback`,
+  );
+}
+
 // ── 결과 ───────────────────────────────────────────────────
 console.log("");
 if (errors.length > 0) {

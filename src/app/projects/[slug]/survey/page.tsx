@@ -5,6 +5,7 @@ import { CheckCircle2, Gift, ShieldCheck } from "lucide-react";
 
 import { SurveyForm } from "@/components/survey/survey-form";
 import { db } from "@/lib/db";
+import { getProjectAccess } from "@/features/project/permissions";
 import { getViewer } from "@/lib/session";
 import { getOpenSurvey, hasResponded } from "@/features/survey/queries";
 
@@ -31,11 +32,12 @@ export default async function SurveyPage({ params }: { params: Promise<{ slug: s
     );
   }
 
-  if (project.ownerId === viewer.id) {
+  const team = await getProjectAccess(project, viewer.id);
+  if (team.role !== null) {
     return (
       <Shell slug={slug} name={project.name}>
         <p className="text-muted-foreground">
-          본인 프로젝트의 설문에는 응답할 수 없습니다.{" "}
+          본인 팀 프로젝트의 설문에는 응답할 수 없습니다.{" "}
           <Link href={`/dashboard/projects/${slug}/feedback`} className="text-primary underline">
             받은 피드백 보기
           </Link>

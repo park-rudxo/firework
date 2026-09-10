@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { canRevealIndividualResponses, MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
+import {
+  ANONYMITY_LIMIT,
+  ANONYMITY_PROMISE,
+  canRevealIndividualResponses,
+  MIN_RESPONSES_TO_REVEAL,
+  revealableResponseCount,
+} from "@/features/survey/anonymity";
 
 /**
  * 익명성은 코드 규칙이 아니라 스키마 형태로 보장된다.
@@ -95,5 +101,45 @@ describe("기간별 집계 경로", () => {
     const rollup = modelBody("ProjectStatDaily");
     expect(rollup).toMatch(/surveyResponses\s+Int/);
     expect(rollup).not.toMatch(/\buserId\b/);
+  });
+});
+
+describe("개별 응답 공개 단위", () => {
+  it("임계 미만이면 한 건도 공개하지 않는다", () => {
+    expect(revealableResponseCount(0)).toBe(0);
+    expect(revealableResponseCount(2)).toBe(0);
+  });
+
+  it("임계의 배수로만 늘어난다", () => {
+    // 임계만 두고 그 위로는 전부 보여주면, 제작자가 결과 화면을 열어둔 채 기다리다가
+    // 3건에서 4건이 되는 순간 "방금 늘어난 하나" 를 지목할 수 있다.
+    // 그러면 그 한 건은 방금 부탁했던 사람의 것으로 좁혀진다.
+    expect(revealableResponseCount(3)).toBe(3);
+    expect(revealableResponseCount(4)).toBe(3);
+    expect(revealableResponseCount(5)).toBe(3);
+    expect(revealableResponseCount(6)).toBe(6);
+    expect(revealableResponseCount(8)).toBe(6);
+    expect(revealableResponseCount(9)).toBe(9);
+  });
+
+  it("공개 수는 언제나 실제 응답 수를 넘지 않는다", () => {
+    for (let n = 0; n < 40; n += 1) {
+      expect(revealableResponseCount(n)).toBeLessThanOrEqual(n);
+    }
+  });
+});
+
+describe("익명성 안내 문구", () => {
+  it("지킬 수 없는 약속을 하지 않는다", () => {
+    // 예전 문구는 "설계상 연결이 불가능합니다" 였다. 참이 아니다 —
+    // 응답자가 한 명이면 두 표를 나란히 놓기만 해도 보인다.
+    const text = `${ANONYMITY_PROMISE} ${ANONYMITY_LIMIT}`;
+    for (const overclaim of ["불가능", "절대", "누구도", "완전"]) {
+      expect(text).not.toContain(overclaim);
+    }
+  });
+
+  it("한계를 함께 알린다", () => {
+    expect(ANONYMITY_LIMIT).toContain("참여자가 적을 때");
   });
 });

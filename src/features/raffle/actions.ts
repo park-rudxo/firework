@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { getProjectAccess } from "@/features/project/permissions";
 import { requireViewer } from "@/lib/session";
 import { createSeed, drawWinners } from "@/features/raffle/draw";
 import { notify, notifyMany } from "@/features/notification/create";
@@ -31,7 +32,8 @@ export async function createRaffle(
     select: { id: true, ownerId: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 추첨을 열 수 있습니다." };
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canManage) return { error: "이 프로젝트의 관리 팀만 추첨을 열 수 있습니다." };
 
   const parsed = createSchema.safeParse({
     surveyId: form.get("surveyId"),
@@ -131,12 +133,13 @@ export async function drawRaffle(raffleId: string): Promise<RaffleState> {
       winnerCount: true,
       closesAt: true,
       prizeName: true,
-      project: { select: { ownerId: true, slug: true, name: true } },
+      project: { select: { id: true, ownerId: true, slug: true, name: true } },
       entries: { select: { id: true, ticketCode: true, userId: true } },
     },
   });
   if (!raffle) return { error: "추첨을 찾을 수 없습니다." };
-  if (raffle.project.ownerId !== viewer.id) return { error: "권한이 없습니다." };
+  const access = await getProjectAccess(raffle.project, viewer.id);
+  if (!access.canManage) return { error: "권한이 없습니다." };
   if (raffle.status === "DRAWN") return { error: "이미 추첨이 끝났습니다." };
   if (raffle.status === "CANCELLED") return { error: "취소된 추첨입니다." };
   if (raffle.closesAt > new Date()) return { error: "마감 전에는 추첨할 수 없습니다." };
@@ -228,10 +231,14 @@ export async function markPrizeDelivered(winnerId: string): Promise<RaffleState>
 
   const winner = await db.raffleWinner.findUnique({
     where: { id: winnerId },
-    select: { id: true, raffle: { select: { id: true, project: { select: { ownerId: true } } } } },
+    select: {
+      id: true,
+      raffle: { select: { id: true, project: { select: { id: true, ownerId: true } } } },
+    },
   });
   if (!winner) return { error: "당첨 정보를 찾을 수 없습니다." };
-  if (winner.raffle.project.ownerId !== viewer.id) return { error: "권한이 없습니다." };
+  const access = await getProjectAccess(winner.raffle.project, viewer.id);
+  if (!access.canManage) return { error: "권한이 없습니다." };
 
   await db.raffleWinner.update({ where: { id: winnerId }, data: { claimStatus: "DELIVERED" } });
   revalidatePath(`/raffles/${winner.raffle.id}`);

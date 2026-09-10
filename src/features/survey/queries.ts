@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { canRevealIndividualResponses } from "@/features/survey/anonymity";
+import { canRevealIndividualResponses, revealableResponseCount } from "@/features/survey/anonymity";
 import { questionSchema, type Question } from "@/features/survey/schema";
 
 export async function getOpenSurvey(projectId: string) {
@@ -53,6 +53,8 @@ export type SurveyResults = {
   responseCount: number;
   /** 응답이 적으면 개별 응답을 감춘다. 내용이 곧 작성자를 가리키기 때문이다. */
   individualRevealed: boolean;
+  /** 실제로 공개한 응답 수. 임계의 배수로 내림한 값이다. */
+  revealedCount: number;
   ratings: RatingSummary[];
   choices: ChoiceSummary[];
   texts: TextResponses[];
@@ -75,15 +77,23 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
   if (!parsedQuestions.success) return null;
   const questions: Question[] = parsedQuestions.data;
 
-  // 응답 행에는 시간도 순번도 없다. 돌아오는 순서에 의미가 없으므로 그대로 쓴다.
+  // 응답 행에는 시간도 순번도 없다. 대신 id(UUID) 로 정렬해 순서를 고정한다.
+  // 정렬하지 않으면 Postgres 가 돌려주는 순서가 갱신에 따라 흔들려, 새로고침할 때마다
+  // 목록이 재배열된다. 그러면 어느 항목이 새로 들어온 것인지 눈에 띈다.
   const responses = await db.surveyResponse.findMany({
     where: { surveyId },
+    orderBy: { id: "asc" },
     select: { answers: true },
   });
 
   const responseCount = responses.length;
   const individualRevealed = canRevealIndividualResponses(responseCount);
+  const revealedCount = revealableResponseCount(responseCount);
+
+  // 집계는 전부를 쓰고, 개별 응답만 묶음 단위로 자른다.
+  // 평균과 분포는 한 건이 늘어도 어느 것이 새 것인지 가리키지 않는다.
   const answerRows = responses.map((r) => r.answers as Record<string, unknown>);
+  const revealedRows = answerRows.slice(0, revealedCount);
 
   const ratings: RatingSummary[] = [];
   const choices: ChoiceSummary[] = [];
@@ -119,11 +129,9 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
         break;
       }
       case "text": {
-        const answers = individualRevealed
-          ? answerRows
-              .map((a) => a[q.id])
-              .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-          : [];
+        const answers = revealedRows
+          .map((a) => a[q.id])
+          .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
         texts.push({ questionId: q.id, label: q.label, answers });
         break;
       }
@@ -135,6 +143,7 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
     title: survey.title,
     responseCount,
     individualRevealed,
+    revealedCount,
     ratings,
     choices,
     texts,

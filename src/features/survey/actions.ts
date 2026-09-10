@@ -8,6 +8,9 @@ import { db } from "@/lib/db";
 import { requireNamedViewer, requireViewer } from "@/lib/session";
 import { bumpStat } from "@/features/curation/stats";
 import { notify } from "@/features/notification/create";
+import { notifySubscribers } from "@/features/notification/dispatch";
+import { deliverPending } from "@/features/mattermost/deliver";
+import { getProjectAccess } from "@/features/project/permissions";
 import { MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
 import {
   answersFromFormData,
@@ -28,8 +31,12 @@ export type SurveyState = { ok: boolean; error: string | null; enteredRaffle?: b
  *   survey_response       내용만.  userId 도, 시간 정보도 없음.
  *   survey_participation  누구인지만.  내용 없음.
  *
- * 그래서 DB 를 통째로 들여다봐도 "이 사람이 이 응답을 썼다"를 복원할 수 없다.
+ * 그래서 제작자 화면 어디에도 "이 사람이 이 응답을 썼다"를 뽑아낼 조회가 없다.
  * 응모권(raffle_entry)도 participation 쪽에만 붙는다.
+ *
+ * 단, 응답자가 한 명뿐이면 두 표를 나란히 놓기만 해도 대응이 보인다. 표본이 작을 때
+ * 익명성을 깨는 것은 구조가 아니라 표본 크기이고, 그것까지 스키마로 막을 수는 없다.
+ * 그 부분은 화면에서 3건 묶음 공개로 눌러둔다(features/survey/anonymity.ts).
  */
 export async function submitSurveyResponse(
   surveyId: string,
@@ -71,8 +78,11 @@ export async function submitSurveyResponse(
   }
 
   // 제작자가 자기 설문에 응답해 추첨 응모권을 만드는 걸 막는다.
-  if (survey.project.ownerId === viewer.id) {
-    return { ok: false, error: "본인 프로젝트의 설문에는 응답할 수 없습니다." };
+  // 등록자뿐 아니라 팀원 전원이다 — 팀 프로젝트에서 등록자만 막으면 나머지 팀원이
+  // 응모권을 나눠 가지면 그만이다.
+  const team = await getProjectAccess(survey.project, viewer.id);
+  if (team.role !== null) {
+    return { ok: false, error: "본인 팀 프로젝트의 설문에는 응답할 수 없습니다." };
   }
 
   const questions = questionSchema.array().safeParse(survey.questions);
@@ -160,10 +170,12 @@ export async function createSurvey(
 
   const project = await db.project.findUnique({
     where: { slug },
-    select: { id: true, ownerId: true },
+    select: { id: true, name: true, ownerId: true, status: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 설문을 만들 수 있습니다." };
+
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canManage) return { error: "이 프로젝트의 관리 팀만 설문을 만들 수 있습니다." };
 
   let questions: Question[];
   try {
@@ -209,6 +221,23 @@ export async function createSurvey(
     },
   });
 
+  // 설문 개설은 "참여 모집" 이다. 구독자 중 그 알림을 켜둔 사람에게만 나간다.
+  //
+  // 여기서 알리는 것은 설문이 열렸다는 사실뿐이다. 응답이 들어왔다는 사실은
+  // 누구에게도 알리지 않는다 — 그 알림 하나가 응답 시각을 흘려 익명성을 깬다.
+  if (project.status === "PUBLISHED") {
+    await notifySubscribers({
+      projectId: project.id,
+      topic: "RECRUITING",
+      type: "PROJECT_RECRUITING",
+      title: `${project.name} 이 피드백을 받고 있습니다`,
+      body: parsed.data.title,
+      url: `/projects/${slug}/survey`,
+      excludeUserIds: [viewer.id],
+    });
+    void deliverPending().catch(() => {});
+  }
+
   revalidatePath(`/projects/${slug}`);
   revalidatePath("/calendar");
   return { error: null };
@@ -219,10 +248,12 @@ export async function closeSurvey(surveyId: string): Promise<SurveyAdminState> {
 
   const survey = await db.survey.findUnique({
     where: { id: surveyId },
-    select: { id: true, project: { select: { ownerId: true, slug: true } } },
+    select: { id: true, project: { select: { id: true, ownerId: true, slug: true } } },
   });
   if (!survey) return { error: "설문을 찾을 수 없습니다." };
-  if (survey.project.ownerId !== viewer.id) return { error: "권한이 없습니다." };
+
+  const access = await getProjectAccess(survey.project, viewer.id);
+  if (!access.canManage) return { error: "권한이 없습니다." };
 
   await db.survey.update({ where: { id: surveyId }, data: { isOpen: false } });
   revalidatePath(`/projects/${survey.project.slug}`);

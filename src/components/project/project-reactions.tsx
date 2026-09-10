@@ -2,12 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Bell, BellRing, Heart, Check, Hand } from "lucide-react";
+import { Heart, Check, Hand } from "lucide-react";
 
-import { toggleFollow, toggleLike, toggleTry } from "@/features/project/actions";
+import { toggleLike, toggleTry } from "@/features/project/actions";
 
-type Counts = { likes: number; follows: number; tries: number };
-type Reactions = { liked: boolean; following: boolean; tried: boolean };
+/**
+ * 관심 등록(follow)은 여기 없다. 그 버튼은 SubscribeControls 의 "구독" 이 됐다.
+ * 같은 뜻의 버튼이 두 개 있으면 어느 쪽이 알림을 켜는 것인지 알 수 없다.
+ */
+type Counts = { likes: number; tries: number };
+type Reactions = { liked: boolean; tried: boolean };
 
 export function ProjectReactions({
   slug,
@@ -63,15 +67,6 @@ export function ProjectReactions({
         idleIcon={Hand}
         label="써봤어요"
         count={state.tries}
-      />
-      <ReactionButton
-        active={state.following}
-        onClick={() => run("following", "follows", toggleFollow)}
-        activeIcon={BellRing}
-        idleIcon={Bell}
-        label={state.following ? "관심 해제" : "관심 등록"}
-        count={state.follows}
-        title="관심 등록하면 이 프로젝트의 일정이 내 캘린더에 표시됩니다."
       />
       <ReactionButton
         active={state.liked}

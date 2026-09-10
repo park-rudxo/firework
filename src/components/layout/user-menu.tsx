@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Bell, BellRing, LayoutDashboard, LogOut, Plus, ShieldCheck, User as UserIcon } from "lucide-react";
 
 import { SignInMenu } from "@/components/auth/sign-in-menu";
 import { signOut } from "@/lib/auth-client";
@@ -74,8 +74,14 @@ export function UserMenu({
             <MenuLink href="/dashboard" icon={LayoutDashboard} onClick={() => setOpen(false)}>
               대시보드
             </MenuLink>
+            <MenuLink href="/subscriptions" icon={Bell} onClick={() => setOpen(false)}>
+              구독
+            </MenuLink>
             <MenuLink href="/settings/profile" icon={UserIcon} onClick={() => setOpen(false)}>
               프로필 설정
+            </MenuLink>
+            <MenuLink href="/settings/notifications" icon={BellRing} onClick={() => setOpen(false)}>
+              알림 설정
             </MenuLink>
             {viewer.isAdmin ? (
               <>

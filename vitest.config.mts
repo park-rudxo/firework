@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // DB 를 쓰는 테스트는 같은 테이블을 지우고 채운다. 병렬로 돌리면 서로의 데이터를
+    // 지워버리므로 한 프로세스에서 순서대로 돌린다.
+    fileParallelism: false,
+    setupFiles: ["tests/setup.ts"],
   },
   resolve: {
     alias: {

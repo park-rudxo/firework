@@ -231,6 +231,88 @@ async function main() {
       ],
     });
 
+    // 공동 관리자. 팀이 만든 프로젝트를 모으는 서비스이므로 등록자 혼자인 상태가
+    // 기본값처럼 보이면 안 된다.
+    const teammate = users.find((u) => u.id !== owner.id)!;
+    await db.projectMember.create({
+      data: { projectId: project.id, userId: teammate.id, role: "MAINTAINER" },
+    });
+
+    // 알림 동의. 구독자 중 일부만 켠 상태를 만든다 — 구독과 알림이 다른 것임을
+    // 화면에서 바로 볼 수 있어야 한다. 기본은 꺼짐이므로 대부분은 행이 없다.
+    const subscribers = await db.projectFollow.findMany({
+      where: { projectId: project.id },
+      select: { userId: true },
+    });
+    for (const [j, sub] of subscribers.entries()) {
+      if (j % 3 !== 0) continue;
+      await db.projectNotificationPref.create({
+        data: { projectId: project.id, userId: sub.userId, topic: "UPDATE" },
+      });
+      if (j === 0) {
+        await db.projectNotificationPref.create({
+          data: { projectId: project.id, userId: sub.userId, topic: "RECRUITING" },
+        });
+      }
+    }
+
+    // 진행 소식. 배포가 끝나도 남는 기록이라 프로젝트마다 최소 하나는 둔다.
+    await db.projectUpdate.createMany({
+      data: [
+        {
+          projectId: project.id,
+          authorId: owner.id,
+          kind: "RELEASE",
+          title: `${spec.name} v1.0 을 공개했습니다`,
+          body: `처음 써보시는 분은 데모부터 열어보세요.\n\n- 회원가입 없이 둘러볼 수 있습니다\n- 피드백은 버그 제보로 받고 있습니다`,
+          publishedAt: daysFromNow(-(i + 3)),
+        },
+        {
+          projectId: project.id,
+          authorId: owner.id,
+          kind: "FIX",
+          title: "모바일에서 레이아웃이 깨지던 문제를 고쳤습니다",
+          body: "제보해주신 내용을 반영했습니다. 화면이 좁을 때 목록이 한 줄로 접히도록 바꿨습니다.",
+          publishedAt: daysFromNow(-(i + 1)),
+        },
+      ],
+    });
+
+    // 버그 제보. 처리 대기와 완료가 섞여 있어야 큐 화면이 의미 있다.
+    const reporters = users.filter((u) => u.id !== owner.id).slice(0, 3);
+    await db.bugReport.createMany({
+      data: [
+        {
+          projectId: project.id,
+          reporterId: reporters[0]!.id,
+          title: "로그인 후 첫 화면이 잠깐 비어 보입니다",
+          detail: "구글 로그인 → 리다이렉트 직후 1초 정도 빈 화면이 보입니다.",
+          environment: "크롬 141 / 윈도우 11",
+          status: "TRIAGING",
+          // 켠 사람만 처리 알림을 받는다. 기본은 꺼짐이라 나머지는 false 다.
+          notifyReporter: true,
+        },
+        {
+          projectId: project.id,
+          reporterId: reporters[1]!.id,
+          title: "모바일에서 목록이 겹칩니다",
+          detail: "아이폰 사파리에서 카드가 서로 겹쳐 보입니다.",
+          environment: "iOS 18 Safari",
+          status: "FIXED",
+          statusNote: "화면이 좁을 때 한 줄로 접히도록 고쳤습니다.",
+          handledById: owner.id,
+          handledAt: daysFromNow(-1),
+        },
+        {
+          projectId: project.id,
+          reporterId: reporters[2]!.id,
+          title: "검색어에 공백을 넣으면 결과가 없습니다",
+          detail: "'관통 프로젝트' 처럼 띄어쓰면 아무것도 안 나옵니다.",
+          status: "RECEIVED",
+        },
+      ],
+    });
+
     // 앞의 세 프로젝트에만 설문을 연다.
     if (i >= 3) continue;
 

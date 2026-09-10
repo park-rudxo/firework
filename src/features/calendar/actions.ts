@@ -5,6 +5,9 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
+import { deliverPending } from "@/features/mattermost/deliver";
+import { notifySubscribers } from "@/features/notification/dispatch";
+import { getProjectAccess } from "@/features/project/permissions";
 
 export type EventState = { error: string | null };
 
@@ -44,10 +47,12 @@ export async function createEvent(
 
   const project = await db.project.findUnique({
     where: { slug },
-    select: { id: true, ownerId: true },
+    select: { id: true, name: true, ownerId: true, status: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 일정을 등록할 수 있습니다." };
+
+  const access = await getProjectAccess(project, viewer.id);
+  if (!access.canManage) return { error: "이 프로젝트의 관리 팀만 일정을 등록할 수 있습니다." };
 
   const parsed = eventSchema.safeParse({
     type: form.get("type"),
@@ -76,6 +81,24 @@ export async function createEvent(
     },
   });
 
+  // 알림이 나가는 일정은 두 종류뿐이다.
+  //   TEST    — 테스터를 모집한다. 지금 참여할 수 있다는 뜻이라 시의성이 있다.
+  //   RELEASE — 정식 출시. 구독자가 기다리던 소식이다.
+  // MILESTONE·OTHER 까지 알리면 팀 내부 일정이 남의 채팅창으로 흘러간다.
+  const topic = parsed.data.type === "TEST" ? "RECRUITING" : parsed.data.type === "RELEASE" ? "UPDATE" : null;
+  if (topic && project.status === "PUBLISHED") {
+    await notifySubscribers({
+      projectId: project.id,
+      topic,
+      type: topic === "RECRUITING" ? "PROJECT_RECRUITING" : "PROJECT_UPDATE_POSTED",
+      title: `${project.name} · ${parsed.data.title}`,
+      body: parsed.data.description ?? undefined,
+      url: `/projects/${slug}`,
+      excludeUserIds: [viewer.id],
+    });
+    void deliverPending().catch(() => {});
+  }
+
   revalidatePath(`/projects/${slug}`);
   revalidatePath("/calendar");
   return { error: null };
@@ -88,11 +111,13 @@ export async function deleteEvent(eventId: string): Promise<EventState> {
     where: { id: eventId },
     select: {
       autoSourceType: true,
-      project: { select: { ownerId: true, slug: true } },
+      project: { select: { id: true, ownerId: true, slug: true } },
     },
   });
   if (!event) return { error: "일정을 찾을 수 없습니다." };
-  if (event.project.ownerId !== viewer.id) return { error: "권한이 없습니다." };
+
+  const access = await getProjectAccess(event.project, viewer.id);
+  if (!access.canManage) return { error: "권한이 없습니다." };
 
   // 설문·추첨에서 자동 생성된 일정은 원본을 닫아야 사라진다.
   // 여기서 지우게 두면 일정만 없고 설문은 열려 있는 어긋난 상태가 된다.

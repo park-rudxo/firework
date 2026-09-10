@@ -39,6 +39,14 @@ const serverSchema = z.object({
   RESEND_API_KEY: blank(z.string().optional()),
   EMAIL_FROM: blank(z.string().optional()),
 
+  // ── Mattermost ────────────────────────────────────────────
+  // 싸피 교육생이 매일 쓰는 채널이라 알림을 여기로 보낸다.
+  // 셋 다 채워져야 계정 연결 버튼이 뜬다. 하나라도 비면 "연결 가능" 이라고
+  // 표시하지 않는다 — 눌러도 안 되는 버튼은 없는 버튼보다 나쁘다.
+  MATTERMOST_URL: blank(z.url("주소 형식이 아닙니다 (예: https://meeting.ssafy.com)").optional()),
+  MATTERMOST_CLIENT_ID: blank(z.string().optional()),
+  MATTERMOST_CLIENT_SECRET: blank(z.string().optional()),
+
   // 최초 관리자를 만드는 경로. 콤마로 구분한 이메일 목록.
   // 여기 적힌 이메일로 로그인하면 관리자로 승격된다. 그 뒤로는 관리자가
   // 화면에서 다른 사람을 임명할 수 있으므로, 이 값은 부트스트랩 용도다.
@@ -103,3 +111,14 @@ export function configuredProviders(env: ServerEnv) {
 }
 
 export type ProviderId = keyof ReturnType<typeof configuredProviders>;
+
+/**
+ * Mattermost 계정 연결을 제공할 수 있는 상태인지.
+ *
+ * 설정이 없으면 화면에 연결 버튼을 띄우지 않고, 인증이나 발송이 된 것처럼도
+ * 표시하지 않는다. 싸피 서버가 OAuth 앱 등록을 허용하는지는 배포 전에 확인해야
+ * 하는 항목이고, 확인되기 전까지 이 값은 비어 있는 게 맞는 상태다.
+ */
+export function mattermostConfigured(env: ServerEnv): boolean {
+  return filled(env.MATTERMOST_URL, env.MATTERMOST_CLIENT_ID, env.MATTERMOST_CLIENT_SECRET);
+}

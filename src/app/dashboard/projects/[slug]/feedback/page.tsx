@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Lock, ShieldCheck } from "lucide-react";
 
-import { db } from "@/lib/db";
+import { findManageableProject } from "@/features/project/permissions";
 import { getViewer } from "@/lib/session";
 import { MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
 import { getSurveyResults, listProjectSurveys } from "@/features/survey/queries";
@@ -23,11 +23,8 @@ export default async function FeedbackPage({
   const viewer = await getViewer();
   if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(`/dashboard/projects/${slug}/feedback`)}`);
 
-  const project = await db.project.findUnique({
-    where: { slug },
-    select: { id: true, name: true, ownerId: true },
-  });
-  if (!project || project.ownerId !== viewer.id) notFound();
+  const project = await findManageableProject(slug, viewer.id);
+  if (!project) notFound();
 
   const surveys = await listProjectSurveys(project.id);
   const selectedId = surveyParam ?? surveys[0]?.id;
