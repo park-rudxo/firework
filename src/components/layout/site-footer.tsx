@@ -7,9 +7,9 @@ export function SiteFooter() {
         <p>
           firework — SSAFY 프로젝트 공유 플랫폼. 설문 응답은{" "}
           <Link href="/about/anonymity" className="underline underline-offset-2">
-            제작자에게도 익명
-          </Link>
-          으로 전달됩니다.
+            작성자 정보 없이
+          </Link>{" "}
+          전달됩니다.
         </p>
         <nav className="flex gap-4">
           <Link href="/about/anonymity" className="hover:text-foreground">

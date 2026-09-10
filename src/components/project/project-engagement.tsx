@@ -29,7 +29,7 @@ export function EngagementBanner({
         <div className="min-w-0 flex-1">
           <h2 className="font-medium">{survey.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            써보고 느낀 점을 남겨주세요. <strong>제작자에게도 익명</strong>으로 전달됩니다.
+            써보고 느낀 점을 남겨주세요. <strong>작성자 정보 없이</strong> 전달됩니다.
             {survey.closesAt ? ` ${fmt.format(survey.closesAt)} 마감.` : ""}
           </p>
 

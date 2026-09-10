@@ -36,23 +36,25 @@ export function canRevealIndividualResponses(responseCount: number): boolean {
 }
 
 /**
- * 지금 감춰둔 것을 한꺼번에 공개할 때인가.
+ * 아직 공개하지 않은 응답이 hidden 건 있을 때, 지금 몇 건을 열 것인가.
  *
  * 임계만 두고 그 위로는 전부 보여주면, 제작자가 결과 화면을 열어둔 채 기다리다가
  * 3건에서 4건이 되는 순간 "방금 늘어난 하나" 를 지목할 수 있다. 그러면 그 한 건은
  * 방금 부탁했던 사람의 것으로 좁혀진다. 응답 행에서 시간을 지운 의미가 화면에서
- * 되살아나는 셈이다.
+ * 되살아나는 셈이다. 그래서 3건이 모여야 한 묶음이 열린다.
  *
- * 그래서 3의 배수에 닿을 때만 연다. 4·5번째가 들어와도 화면은 그대로 3건이고,
- * 6건이 되는 순간 셋이 함께 나타난다.
+ * **전체 건수가 아니라 "아직 안 열린 건수" 로 센다.** 예전 구현에서 5건이 모두 공개돼
+ * 있던 설문은 전체가 3의 배수가 아니다. 전체로 세면 그런 설문은 영영 열리지 않거나
+ * 엉뚱한 시점에 열린다. 남은 것만 세면 5건 → 새 3건에서 8건이 된다.
  *
  * **공개된 묶음의 구성원은 고정되어야 한다.** 조회할 때마다 "앞에서 3건" 을 다시
  * 고르면 안 된다 — 새 응답이 정렬 순서상 앞에 끼어들면 이미 공개됐던 것이 사라지고
  * 새 것이 나타나, 바로 그 차이가 신규 응답을 가리킨다. 그래서 공개 여부는 조회 시점에
  * 계산하지 않고 survey_response.revealed 에 박아둔다. 한 번 켜지면 꺼지지 않는다.
  */
-export function shouldOpenNextBatch(responseCount: number): boolean {
-  return responseCount > 0 && responseCount % MIN_RESPONSES_TO_REVEAL === 0;
+export function batchToOpen(hidden: number): number {
+  if (hidden < MIN_RESPONSES_TO_REVEAL) return 0;
+  return Math.floor(hidden / MIN_RESPONSES_TO_REVEAL) * MIN_RESPONSES_TO_REVEAL;
 }
 
 /** 응답이 n 건일 때 화면에 보이는 개별 응답 수. 검증과 안내에 쓴다. */
