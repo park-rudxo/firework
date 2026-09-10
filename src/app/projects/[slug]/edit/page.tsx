@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 
 import { ProjectForm } from "@/components/project/project-form";
 import { PublishToggle } from "@/components/project/publish-toggle";
+import { canManageProject } from "@/features/community/access";
+import { canAdminister } from "@/features/community/policy";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/session";
 
@@ -25,6 +27,7 @@ export default async function EditProjectPage({
   const project = await db.project.findUnique({
     where: { slug },
     select: {
+      id: true,
       name: true,
       tagline: true,
       description: true,
@@ -41,7 +44,8 @@ export default async function EditProjectPage({
   });
 
   if (!project || project.status === "REMOVED") notFound();
-  if (project.ownerId !== viewer.id) notFound();
+  if (!(await canManageProject(project, viewer.id))) notFound();
+  const isOwner = canAdminister(project.ownerId, viewer.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -71,9 +75,15 @@ export default async function EditProjectPage({
         </p>
       ) : null}
 
-      <div className="mt-6">
-        <PublishToggle slug={slug} status={project.status} />
-      </div>
+      {isOwner ? (
+        <div className="mt-6">
+          <PublishToggle slug={slug} status={project.status} />
+        </div>
+      ) : (
+        <p className="mt-6 rounded-xl border border-border bg-surface-muted p-3.5 text-sm text-muted-foreground">
+          공동 관리자로 참여 중입니다. 내용은 수정할 수 있고, 공개 여부는 등록자가 정합니다.
+        </p>
+      )}
 
       <hr className="my-8 border-border" />
 

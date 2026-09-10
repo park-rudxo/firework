@@ -28,7 +28,7 @@ export default async function CalendarPage({
   const viewer = await getViewer();
 
   const month = parseMonth(sp.month);
-  // 로그인한 사람에게는 관심 프로젝트만 보는 것이 기본이다. 그게 캘린더를 쓰는 이유다.
+  // 로그인한 사람에게는 구독한 프로젝트만 보는 것이 기본이다. 그게 캘린더를 쓰는 이유다.
   const followedOnly = viewer ? sp.scope !== "all" : false;
   const types = ALL_TYPES.includes(sp.type as ProjectEventType)
     ? [sp.type as ProjectEventType]
@@ -74,7 +74,7 @@ export default async function CalendarPage({
                 followedOnly ? "bg-foreground text-background" : "text-muted-foreground"
               }`}
             >
-              관심 프로젝트 {followCount > 0 ? followCount : ""}
+              구독 중 {followCount > 0 ? followCount : ""}
             </Link>
             <Link
               href={href({ scope: "all" })}
@@ -149,7 +149,7 @@ export default async function CalendarPage({
 
           {viewer && followedOnly && followCount === 0 ? (
             <p className="mt-4 rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground">
-              아직 관심 등록한 프로젝트가 없습니다. 프로젝트 페이지에서 관심 등록을 누르면 그
+              아직 구독한 프로젝트가 없습니다. 프로젝트 페이지에서 구독을 누르면 그
               프로젝트의 일정이 여기에 모입니다.{" "}
               <Link href="/projects" className="text-primary underline">
                 둘러보기

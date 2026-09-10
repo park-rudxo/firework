@@ -3,9 +3,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Lock, ShieldCheck } from "lucide-react";
 
+import { canManageProject } from "@/features/community/access";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/session";
-import { MIN_RESPONSES_TO_REVEAL } from "@/features/survey/anonymity";
+import {
+  ANONYMITY_LIMIT,
+  ANONYMITY_PROMISE,
+  MIN_RESPONSES_TO_REVEAL,
+} from "@/features/survey/anonymity";
 import { getSurveyResults, listProjectSurveys } from "@/features/survey/queries";
 
 export const metadata: Metadata = { title: "받은 피드백" };
@@ -27,7 +32,7 @@ export default async function FeedbackPage({
     where: { slug },
     select: { id: true, name: true, ownerId: true },
   });
-  if (!project || project.ownerId !== viewer.id) notFound();
+  if (!project || !(await canManageProject(project, viewer.id))) notFound();
 
   const surveys = await listProjectSurveys(project.id);
   const selectedId = surveyParam ?? surveys[0]?.id;
@@ -44,9 +49,10 @@ export default async function FeedbackPage({
       <div className="mt-4 flex items-start gap-2.5 rounded-card border border-border bg-surface p-4 text-sm">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
         <p className="text-muted-foreground">
-          누가 어떤 답을 썼는지는 <strong className="text-foreground">저희도 알 수 없습니다.</strong>{" "}
-          응답 내용과 응답자 기록이 서로 연결되지 않는 별개의 테이블에 저장되기 때문입니다.
-          응답자를 알려달라는 요청에도 응할 수 없습니다.
+          {ANONYMITY_PROMISE} 응답 내용과 응답자 기록이 서로 연결되지 않는 별개의 테이블에
+          저장되고, 둘을 잇는 조회 자체가 없습니다. 응답자를 알려달라는 요청에도 응할 수 없습니다.
+          <br />
+          <span className="mt-1 block">{ANONYMITY_LIMIT}</span>
         </p>
       </div>
 
@@ -149,6 +155,16 @@ function Results({ results }: { results: NonNullable<Awaited<ReturnType<typeof g
             );
           })}
         </section>
+      ) : null}
+
+      {results.individualRevealed && results.revealedCount < results.responseCount ? (
+        <p className="mt-5 flex items-start gap-2 rounded-lg bg-surface-muted p-3 text-xs text-muted-foreground">
+          <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          {results.responseCount}건 중 {results.revealedCount}건을 보여드립니다. 개별 응답은{" "}
+          {MIN_RESPONSES_TO_REVEAL}건 단위 묶음으로만 열립니다 — 한 건씩 늘어나면 방금 도착한
+          응답이 무엇인지 드러나기 때문입니다. {MIN_RESPONSES_TO_REVEAL}건이 더 모이면 함께 열립니다.
+          집계는 {results.responseCount}건 전부를 반영합니다.
+        </p>
       ) : null}
 
       {results.texts.length > 0 ? (

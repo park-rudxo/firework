@@ -53,6 +53,8 @@ export type SurveyResults = {
   responseCount: number;
   /** 응답이 적으면 개별 응답을 감춘다. 내용이 곧 작성자를 가리키기 때문이다. */
   individualRevealed: boolean;
+  /** 실제로 공개된 응답 수. 3의 배수로만 늘어난다. */
+  revealedCount: number;
   ratings: RatingSummary[];
   choices: ChoiceSummary[];
   texts: TextResponses[];
@@ -78,12 +80,22 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
   // 응답 행에는 시간도 순번도 없다. 돌아오는 순서에 의미가 없으므로 그대로 쓴다.
   const responses = await db.surveyResponse.findMany({
     where: { surveyId },
-    select: { answers: true },
+    select: { answers: true, revealed: true },
   });
 
   const responseCount = responses.length;
   const individualRevealed = canRevealIndividualResponses(responseCount);
+
+  // 집계는 전부를 쓰고, 개별 자유서술만 공개된 묶음으로 자른다.
+  // 평균과 분포는 한 건이 늘어도 어느 것이 새 것인지 가리키지 않는다.
+  //
+  // 여기서 다시 고르지 않는다 — 무엇을 공개할지는 응답이 들어올 때 이미 정해졌고,
+  // 그 결정이 revealed 에 박혀 있다. 조회할 때마다 계산하면 묶음의 구성원이 흔들린다.
   const answerRows = responses.map((r) => r.answers as Record<string, unknown>);
+  const revealedRows = responses
+    .filter((r) => r.revealed)
+    .map((r) => r.answers as Record<string, unknown>);
+  const revealedCount = revealedRows.length;
 
   const ratings: RatingSummary[] = [];
   const choices: ChoiceSummary[] = [];
@@ -119,11 +131,9 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
         break;
       }
       case "text": {
-        const answers = individualRevealed
-          ? answerRows
-              .map((a) => a[q.id])
-              .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-          : [];
+        const answers = revealedRows
+          .map((a) => a[q.id])
+          .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
         texts.push({ questionId: q.id, label: q.label, answers });
         break;
       }
@@ -135,6 +145,7 @@ export async function getSurveyResults(surveyId: string): Promise<SurveyResults 
     title: survey.title,
     responseCount,
     individualRevealed,
+    revealedCount,
     ratings,
     choices,
     texts,

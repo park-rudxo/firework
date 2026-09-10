@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { requireViewer } from "@/lib/session";
+import { canManageProject } from "@/features/community/access";
 
 export type EventState = { error: string | null };
 
@@ -47,7 +48,9 @@ export async function createEvent(
     select: { id: true, ownerId: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 일정을 등록할 수 있습니다." };
+  if (!(await canManageProject(project, viewer.id))) {
+    return { error: "이 프로젝트의 관리 팀만 일정을 등록할 수 있습니다." };
+  }
 
   const parsed = eventSchema.safeParse({
     type: form.get("type"),
@@ -88,11 +91,11 @@ export async function deleteEvent(eventId: string): Promise<EventState> {
     where: { id: eventId },
     select: {
       autoSourceType: true,
-      project: { select: { ownerId: true, slug: true } },
+      project: { select: { id: true, ownerId: true, slug: true } },
     },
   });
   if (!event) return { error: "일정을 찾을 수 없습니다." };
-  if (event.project.ownerId !== viewer.id) return { error: "권한이 없습니다." };
+  if (!(await canManageProject(event.project, viewer.id))) return { error: "권한이 없습니다." };
 
   // 설문·추첨에서 자동 생성된 일정은 원본을 닫아야 사라진다.
   // 여기서 지우게 두면 일정만 없고 설문은 열려 있는 어긋난 상태가 된다.

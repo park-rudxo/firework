@@ -7,6 +7,7 @@ import { CreateRaffleForm } from "@/components/dashboard/create-raffle-form";
 import { CreateSurveyForm } from "@/components/dashboard/create-survey-form";
 import { EVENT_TYPE_LABEL } from "@/features/calendar/queries";
 import { listProjectSurveys } from "@/features/survey/queries";
+import { canManageProject } from "@/features/community/access";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/session";
 
@@ -24,7 +25,7 @@ export default async function ProjectOpsPage({ params }: { params: Promise<{ slu
     where: { slug },
     select: { id: true, name: true, ownerId: true, status: true },
   });
-  if (!project || project.ownerId !== viewer.id) notFound();
+  if (!project || !(await canManageProject(project, viewer.id))) notFound();
 
   const [surveys, events] = await Promise.all([
     listProjectSurveys(project.id),
@@ -67,7 +68,8 @@ export default async function ProjectOpsPage({ params }: { params: Promise<{ slu
       <section className="mt-10">
         <h2 className="text-lg font-semibold">설문</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          응답은 제작자인 본인에게도 익명으로 전달됩니다. 누가 무엇을 썼는지는 조회할 수 없습니다.
+          응답은 작성자 정보 없이 전달됩니다. 누가 무엇을 썼는지 조회할 수 있는 경로는 없습니다.
+          다만 참여자가 적을 때는 내용만으로 짐작될 수 있어, 개별 응답은 3건 단위 묶음으로 공개합니다.
         </p>
 
         {surveys.length > 0 ? (
@@ -145,7 +147,7 @@ export default async function ProjectOpsPage({ params }: { params: Promise<{ slu
       <section className="mt-12">
         <h2 className="text-lg font-semibold">일정</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          관심 등록한 사람들의 캘린더에 표시됩니다. 설문·추첨 일정은 자동으로 생깁니다.
+          구독한 사람들의 캘린더에 표시됩니다. 설문·추첨 일정은 자동으로 생깁니다.
         </p>
 
         {events.length > 0 ? (

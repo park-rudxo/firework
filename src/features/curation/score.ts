@@ -5,15 +5,22 @@ import { db } from "@/lib/db";
 /**
  * 인기 점수 가중치.
  *
- * 관심 등록이 가장 무겁다. "계속 지켜보겠다"는 신호라 한 번 눌리기 어렵기 때문이다.
- * 조회는 봇과 우연한 유입이 섞이므로 거의 세지 않는다.
+ * 구독이 가장 무겁다. "계속 지켜보겠다"는 신호라 한 번 눌리기 어렵기 때문이다.
+ *
+ * **조회수는 여기 없다.** 예전에는 0.1 로 아주 작게 넣었는데, 상세 페이지는 렌더될
+ * 때마다 조회수를 올린다. 같은 사람이 새로고침만 해도 오르고, 만든 사람이 자기
+ * 페이지를 열어도 오른다. 가중치가 아무리 작아도 무한히 누를 수 있는 버튼을 점수에
+ * 넣으면 그 점수는 순위가 아니라 새로고침 횟수가 된다.
+ * 조회수는 계속 세지만 제작자에게 보여주는 지표로만 쓴다.
+ *
+ * "써봤어요" 도 실제 사용을 확인한 값이 아니라 본인이 눌러 신고한 값이다.
+ * 그래서 구독보다 가볍게 둔다.
  */
 export const WEIGHTS = {
   follows: 3,
-  tries: 2,
   surveyResponses: 2,
+  tries: 2,
   likes: 1,
-  views: 0.1,
 } as const;
 
 export type ScoredProject = { projectId: string; score: number };
@@ -21,7 +28,7 @@ export type ScoredProject = { projectId: string; score: number };
 /**
  * 기간 내 반응을 모아 점수를 매긴다. since 를 주지 않으면 전체 기간(역대 인기)이다.
  *
- * 좋아요·관심·써봤어요는 누적 카운터가 아니라 피벗 테이블의 createdAt 으로 센다.
+ * 좋아요·구독·써봤어요는 누적 카운터가 아니라 피벗 테이블의 createdAt 으로 센다.
  * 누적 카운터였다면 껐다 켜기를 반복해 점수를 부풀릴 수 있었다.
  */
 export async function scoreProjects(since?: Date): Promise<Map<string, number>> {
@@ -37,7 +44,7 @@ export async function scoreProjects(since?: Date): Promise<Map<string, number>> 
     db.projectStatDaily.groupBy({
       by: ["projectId"],
       where: dayFilter,
-      _sum: { views: true, surveyResponses: true },
+      _sum: { surveyResponses: true },
     }),
   ]);
 
@@ -51,7 +58,6 @@ export async function scoreProjects(since?: Date): Promise<Map<string, number>> 
   for (const row of follows) add(row.projectId, row._count._all * WEIGHTS.follows);
   for (const row of tries) add(row.projectId, row._count._all * WEIGHTS.tries);
   for (const row of daily) {
-    add(row.projectId, (row._sum.views ?? 0) * WEIGHTS.views);
     add(row.projectId, (row._sum.surveyResponses ?? 0) * WEIGHTS.surveyResponses);
   }
 

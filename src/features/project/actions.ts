@@ -13,6 +13,8 @@ import {
   verifyOwnership,
 } from "@/lib/github";
 import { requireNamedViewer, requireViewer } from "@/lib/session";
+import { canManageProject } from "@/features/community/access";
+import { canAdminister } from "@/features/community/policy";
 import {
   projectInputFromFormData,
   projectInputSchema,
@@ -138,7 +140,10 @@ export async function updateProject(
     select: { id: true, ownerId: true, repoUrl: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 수정할 수 있습니다." };
+  // 등록자 한 명이 아니라 관리 팀이 수정할 수 있다. 판정은 community/policy.ts 하나에서 온다.
+  if (!(await canManageProject(project, viewer.id))) {
+    return { error: "이 프로젝트의 관리 팀만 수정할 수 있습니다." };
+  }
 
   const parsed = projectInputSchema.safeParse(projectInputFromFormData(form));
   if (!parsed.success) {
@@ -195,7 +200,8 @@ export async function publishProject(slug: string): Promise<ActionState> {
     select: { id: true, ownerId: true, status: true, publishedAt: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 공개할 수 있습니다." };
+  // 공개 여부는 되돌리기 어려운 결정이라 등록자만 정한다.
+  if (!canAdminister(project.ownerId, viewer.id)) return { error: "등록자만 공개할 수 있습니다." };
   if (project.status === "HIDDEN" || project.status === "REMOVED") {
     return { error: "관리자 조치 중인 프로젝트는 공개할 수 없습니다." };
   }
@@ -221,7 +227,7 @@ export async function unpublishProject(slug: string): Promise<ActionState> {
     select: { id: true, ownerId: true, status: true },
   });
   if (!project) return { error: "프로젝트를 찾을 수 없습니다." };
-  if (project.ownerId !== viewer.id) return { error: "본인의 프로젝트만 되돌릴 수 있습니다." };
+  if (!canAdminister(project.ownerId, viewer.id)) return { error: "등록자만 되돌릴 수 있습니다." };
   if (project.status !== "PUBLISHED") return { error: null };
 
   await db.project.update({ where: { id: project.id }, data: { status: "DRAFT" } });

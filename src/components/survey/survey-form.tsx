@@ -30,7 +30,7 @@ export function SurveyForm({
         <CheckCircle2 className="size-6 text-success" aria-hidden />
         <p className="mt-3 font-medium">응답 완료. 고맙습니다.</p>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          제작자에게 익명으로 전달됩니다.
+          제작자에게 작성자 정보 없이 전달됩니다.
           {state.enteredRaffle ? " 추첨에도 응모되었습니다." : ""}
         </p>
         <Link

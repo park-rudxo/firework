@@ -336,6 +336,23 @@ async function main() {
         },
       });
     }
+
+    // 개별 응답은 3건 묶음으로만 열린다(features/survey/anonymity.ts).
+    // 실제 제출 경로가 하는 일을 시드도 똑같이 해야, 5건짜리 설문에서 3건만 보이는
+    // 화면을 개발 중에도 확인할 수 있다.
+    const revealable = Math.floor(responderCount / 3) * 3;
+    if (revealable > 0) {
+      const ids = await db.surveyResponse.findMany({
+        where: { surveyId: survey.id },
+        orderBy: { id: "asc" },
+        take: revealable,
+        select: { id: true },
+      });
+      await db.surveyResponse.updateMany({
+        where: { id: { in: ids.map((r) => r.id) } },
+        data: { revealed: true },
+      });
+    }
   }
 
   console.log(`프로젝트 ${PROJECTS.length}개, 사용자 ${users.length}명을 넣었습니다.`);

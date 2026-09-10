@@ -166,7 +166,7 @@ model Project {
 
   // 실제로 써볼 수 있는 주소가 이 서비스의 핵심이다. "둘러본다 → 써본다 → 피드백" 에서
   // 써볼 곳이 없으면 나머지가 성립하지 않으므로 데모는 필수로 둔다.
-  demoUrl String
+  demoUrl     String
   // 저장소는 선택이다. 넣으면 스타·언어·README 를 가져오고 소유권 확인 배지가 붙는다.
   // https://github.com/{owner}/{repo} 형태만 허용한다.
   repoUrl     String?
@@ -186,18 +186,18 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  members  ProjectMember[]
-  snapshot GithubRepoSnapshot?
-  likes    ProjectLike[]
-  follows  ProjectFollow[]
-  tries    ProjectTry[]
-  stats    ProjectStatDaily[]
-  events   ProjectEvent[]
-  surveys  Survey[]
-  raffles  Raffle[]
-  featured FeaturedSlot[]
-  updates ProjectUpdate[]
-  bugs BugReport[]
+  members    ProjectMember[]
+  snapshot   GithubRepoSnapshot?
+  likes      ProjectLike[]
+  follows    ProjectFollow[]
+  tries      ProjectTry[]
+  stats      ProjectStatDaily[]
+  events     ProjectEvent[]
+  surveys    Survey[]
+  raffles    Raffle[]
+  featured   FeaturedSlot[]
+  updates    ProjectUpdate[]
+  bugs       BugReport[]
   deliveries MattermostDelivery[]
 
   @@index([status, publishedAt])
@@ -212,15 +212,15 @@ enum ProjectMemberRole {
 }
 
 model ProjectMember {
-  id        String            @id @default(uuid())
-  projectId String
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      ProjectMemberRole @default(CONTRIBUTOR)
-  notifyManagement Boolean @default(false)
-  notificationChangedAt DateTime @default(now())
-  createdAt DateTime          @default(now())
+  id                    String            @id @default(uuid())
+  projectId             String
+  project               Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role                  ProjectMemberRole @default(CONTRIBUTOR)
+  notifyManagement      Boolean           @default(false)
+  notificationChangedAt DateTime          @default(now())
+  createdAt             DateTime          @default(now())
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -275,13 +275,13 @@ model ProjectLike {
 
 /// 관심 등록. 이 프로젝트의 일정이 내 캘린더에 뜨는 기준이 된다.
 model ProjectFollow {
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  notifyUpdates Boolean @default(false)
-  notifyRecruitment Boolean @default(false)
+  projectId             String
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  notifyUpdates         Boolean  @default(false)
+  notifyRecruitment     Boolean  @default(false)
   notificationChangedAt DateTime @default(now())
 
   @@id([projectId, userId])
@@ -412,9 +412,13 @@ model Survey {
 
 /// 설문 응답 내용.
 ///
-/// **이 모델에는 userId 가 없고, 앞으로도 추가하면 안 된다.** 제작자에게 익명으로 전달한다는
-/// 약속의 근거가 스키마 그 자체이기 때문이다. 운영자가 DB 에 직접 접근하더라도 응답과 사용자를
-/// 엮을 수 없어야 한다.
+/// **이 모델에는 userId 가 없고, 앞으로도 추가하면 안 된다.** 제작자에게 작성자 정보를 주지
+/// 않는다는 약속의 근거가 스키마 그 자체이기 때문이다.
+///
+/// 다만 이것이 "누구도 알아낼 수 없다" 는 뜻은 아니다. 응답자가 한 명뿐이면 이 표와
+/// survey_participation 을 나란히 놓기만 해도 대응이 보인다. 표본이 작을 때 익명성을 깨는 것은
+/// 구조가 아니라 표본 크기다. 그래서 화면 쪽에도 조치를 둔다 —
+/// 개별 응답은 3건 단위 묶음으로만 공개한다(아래 revealed 참고).
 ///
 /// 재식별 경로를 막기 위한 두 가지 추가 조치:
 ///  - id 는 순번이 아니라 UUID 다. 제출 순서를 추론할 수 없다.
@@ -431,7 +435,23 @@ model SurveyResponse {
   /// { [questionId]: number | string | string[] }
   answers Json
 
+  /// 개별 응답을 제작자에게 보여줘도 되는지. **한 번 켜지면 다시 꺼지지 않는다.**
+  ///
+  /// "3건 이상이면 공개" 만으로는 부족했다. 제작자가 결과 화면을 열어둔 채 기다리다
+  /// 3건에서 4건이 되는 순간, 늘어난 하나가 무엇인지 보인다. 그러면 그 응답은 방금
+  /// 부탁했던 사람의 것으로 좁혀진다.
+  ///
+  /// 그래서 3의 배수에 닿을 때마다 그때까지 감춰둔 것을 한꺼번에 켠다.
+  /// 4·5번째 응답이 들어와도 화면은 그대로 3건이고, 6건이 되는 순간 셋이 함께 나타난다.
+  /// 어느 것이 새 것인지 가려진다.
+  ///
+  /// 이 컬럼이 남기는 것: 덤프를 보면 아직 안 켜진 두 건 이하가 가장 최근이라는 사실.
+  /// 그건 제작자가 화면에서 이미 아는 것과 같은 크기이고, 순번이나 시각과 달리
+  /// 전체를 줄 세우지는 못한다. 순서를 더 세밀하게 담는 필드는 앞으로도 넣지 않는다.
+  revealed Boolean @default(false)
+
   @@index([surveyId])
+  @@index([surveyId, revealed])
   @@map("survey_response")
 }
 
@@ -631,11 +651,11 @@ enum NotificationType {
 // Identity is verified server-side against the fixed SSAFY Mattermost host.
 // No user OAuth tokens or personal webhooks are retained.
 model MattermostIdentity {
-  userId String @id
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mattermostUserId String @unique
-  username String
-  verifiedAt DateTime @default(now())
+  userId           String   @id
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mattermostUserId String   @unique
+  username         String
+  verifiedAt       DateTime @default(now())
 }
 
 enum ProjectUpdateKind {
@@ -644,15 +664,16 @@ enum ProjectUpdateKind {
 }
 
 model ProjectUpdate {
-  id String @id @default(uuid())
+  id        String            @id @default(uuid())
   projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  authorId String
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  kind ProjectUpdateKind @default(UPDATE)
-  title String
-  body String
-  createdAt DateTime @default(now())
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  kind      ProjectUpdateKind @default(UPDATE)
+  title     String
+  body      String
+  createdAt DateTime          @default(now())
+
   @@index([projectId, createdAt])
 }
 
@@ -663,19 +684,20 @@ enum BugStatus {
 }
 
 model BugReport {
-  id String @id @default(uuid())
-  projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  reporterId String
-  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
-  title String
-  description String
-  status BugStatus @default(OPEN)
-  resolution String @default("")
-  notifyStatus Boolean @default(false)
-  notificationChangedAt DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String    @id @default(uuid())
+  projectId             String
+  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporterId            String
+  reporter              User      @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String
+  status                BugStatus @default(OPEN)
+  resolution            String    @default("")
+  notifyStatus          Boolean   @default(false)
+  notificationChangedAt DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
   @@index([projectId, createdAt])
   @@index([reporterId, createdAt])
 }
@@ -697,22 +719,23 @@ enum DeliveryStatus {
 
 // Transactional outbox: create alongside the event, recheck consent before sending.
 model MattermostDelivery {
-  id String @id @default(uuid())
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind DeliveryKind
-  sourceId String
-  dedupeKey String @unique
-  status DeliveryStatus @default(PENDING)
-  attempts Int @default(0)
-  availableAt DateTime @default(now())
-  leaseUntil DateTime?
-  leaseToken String?
-  lastError String?
-  createdAt DateTime @default(now())
-  sentAt DateTime?
+  id          String         @id @default(uuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind        DeliveryKind
+  sourceId    String
+  dedupeKey   String         @unique
+  status      DeliveryStatus @default(PENDING)
+  attempts    Int            @default(0)
+  availableAt DateTime       @default(now())
+  leaseUntil  DateTime?
+  leaseToken  String?
+  lastError   String?
+  createdAt   DateTime       @default(now())
+  sentAt      DateTime?
+
   @@index([status, availableAt])
 }
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 
 import { ProjectIcon } from "@/components/project/project-card";
+import { canManage } from "@/features/community/policy";
 import { listMyProjects } from "@/features/project/queries";
 import { CATEGORY_LABEL } from "@/features/project/schema";
 import { getViewer } from "@/lib/session";
@@ -72,15 +73,15 @@ export default async function DashboardPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {CATEGORY_LABEL[project.category]} · 좋아요 {project._count.likes} · 관심{" "}
-                  {project._count.follows} · 써봄 {project._count.tries} · 설문{" "}
-                  {project._count.surveys} · 추첨 {project._count.raffles}
+                  {CATEGORY_LABEL[project.category]} · 구독 {project._count.follows} · 좋아요{" "}
+                  {project._count.likes} · 써봄 {project._count.tries} · 제보{" "}
+                  {project._count.bugs} · 설문 {project._count.surveys}
                 </p>
               </div>
 
               <div className="flex gap-2 text-sm">
                 <Link href={`/dashboard/projects/${project.slug}/community`} className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted">소식·버그</Link>
-                {project.ownerId === viewer.id ? <>
+                {canManage(project.ownerId, viewer.id, project.members[0]?.role) ? <>
                 <Link
                   href={`/dashboard/projects/${project.slug}/feedback`}
                   className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted"
