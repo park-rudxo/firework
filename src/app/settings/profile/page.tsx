@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { GithubMark } from "@/components/icons/github-mark";
@@ -30,6 +31,7 @@ export default async function ProfileSettingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-semibold">프로필 설정</h1>
+      <Link href="/settings/mattermost" className="mt-4 inline-block text-primary underline">싸피 Mattermost 계정 인증 · 알림 연결 →</Link>
 
       <section className="mt-8">
         <ProfileForm
@@ -49,8 +51,7 @@ export default async function ProfileSettingsPage() {
           연결된 계정
         </h2>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          프로젝트를 등록하려면 GitHub 계정 연결이 필요합니다. 저장소가 본인 것인지 확인하는 데
-          쓰입니다.
+          GitHub 계정은 선택으로 연결할 수 있습니다. 연결한 저장소의 소유 확인에 쓰입니다.
         </p>
 
         <div className="mt-4">

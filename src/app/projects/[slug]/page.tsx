@@ -128,6 +128,9 @@ export default async function ProjectDetailPage({
           ) : null}
         </div>
       </header>
+      <Link href={`/projects/${slug}/community`} className="mt-6 inline-block rounded-xl border border-border px-4 py-3 text-sm">
+        진행 소식 보기 · 버그 제보 →
+      </Link>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {/* 써보러 가는 것이 이 서비스의 첫 동작이라 데모를 앞에 둔다. */}

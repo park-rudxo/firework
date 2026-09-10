@@ -150,6 +150,13 @@ export async function updateProject(
   const input = parsed.data;
   const nextRef = input.repoUrl ? parseRepoUrl(input.repoUrl) : null;
   const nextRepoUrl = nextRef ? canonicalRepoUrl(nextRef) : null;
+  if (nextRepoUrl && nextRepoUrl !== project.repoUrl) {
+    const duplicate = await db.project.findFirst({ where: { repoUrl: nextRepoUrl, id: { not: project.id }, status: { not: "REMOVED" } } });
+    if (duplicate) return { error: "이미 등록된 저장소입니다." };
+  }
+  const verified = nextRepoUrl !== project.repoUrl
+    ? Boolean(nextRef && viewer.githubLogin && await verifyOwnership(nextRef, viewer.githubLogin).catch(() => false))
+    : undefined;
 
   await db.project.update({
     where: { id: project.id },
@@ -160,6 +167,7 @@ export async function updateProject(
       category: input.category,
       tags: input.tags,
       repoUrl: nextRepoUrl,
+      ...(verified !== undefined ? { ownershipVerified: verified } : {}),
       demoUrl: input.demoUrl,
       iconUrl: input.iconUrl,
       screenshots: input.screenshots,
@@ -277,7 +285,7 @@ async function togglePivot(
   kind: "like" | "follow" | "try",
 ): Promise<{ active: boolean }> {
   const viewer = await requireViewer();
-  const project = await db.project.findUnique({ where: { slug }, select: { id: true } });
+  const project = await db.project.findFirst({ where: { slug, status: "PUBLISHED" }, select: { id: true } });
   if (!project) throw new Error("프로젝트를 찾을 수 없습니다.");
 
   const where = { projectId_userId: { projectId: project.id, userId: viewer.id } };

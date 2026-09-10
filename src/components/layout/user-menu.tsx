@@ -74,6 +74,9 @@ export function UserMenu({
             <MenuLink href="/dashboard" icon={LayoutDashboard} onClick={() => setOpen(false)}>
               대시보드
             </MenuLink>
+            <MenuLink href="/subscriptions" icon={LayoutDashboard} onClick={() => setOpen(false)}>내 구독 · 알림</MenuLink>
+            <MenuLink href="/bugs" icon={LayoutDashboard} onClick={() => setOpen(false)}>내 버그 신고</MenuLink>
+            <MenuLink href="/settings/mattermost" icon={ShieldCheck} onClick={() => setOpen(false)}>Mattermost 인증</MenuLink>
             <MenuLink href="/settings/profile" icon={UserIcon} onClick={() => setOpen(false)}>
               프로필 설정
             </MenuLink>

@@ -50,6 +50,9 @@ export default async function ProjectOpsPage({ params }: { params: Promise<{ slu
         ← 내 프로젝트
       </Link>
       <h1 className="mt-4 text-2xl font-semibold">{project.name} — 운영</h1>
+      <Link href={`/dashboard/projects/${slug}/community`} className="mt-5 inline-block rounded-xl border border-border px-4 py-3 text-primary">
+        진행 소식 게시 · 버그 신고 관리 · 알림 설정 →
+      </Link>
 
       {project.status !== "PUBLISHED" ? (
         <p className="mt-4 rounded-xl border border-accent/40 bg-accent/5 p-3.5 text-sm">
