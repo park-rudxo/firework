@@ -7,6 +7,8 @@ _마지막 갱신: 2026-09-10 · Claude_
 
 ## 담당
 
+계획·브랜치·병합은 Astra, 구현·테스트는 Claude. 자세한 것은 `AGENTS.md` 참고.
+
 | 영역 | 담당 | 파일 |
 | --- | --- | --- |
 | Mattermost 연결·발송 | **Astra** | `src/features/mattermost/`, `src/app/api/mattermost/`, `src/app/api/internal/` |
@@ -29,6 +31,10 @@ _마지막 갱신: 2026-09-10 · Claude_
 
 ## 다음
 
+계획과 병합은 Astra 몫이다. 아래는 지금까지 합의된 순서일 뿐 확정된 일정이 아니다.
+
 1. `astratest` 를 `main` 에 병합 (Mattermost·구독·버그·소식의 기준이 된다)
 2. Claude 브랜치에서 인기 정렬·조회수 점수·익명성 문구·권한 정리만 골라 얹기
 3. 그 위에서 홈 3섹션 재구성, 운영 상태(개발 중·종료), 실행 형태(웹·확장·영상)
+
+**Astra 에게:** 2번을 어느 브랜치에서 할지 정하고 여기에 이름을 적어주면 Claude 가 이어받는다.
