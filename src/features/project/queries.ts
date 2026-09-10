@@ -124,11 +124,12 @@ export async function getViewerReactions(projectId: string, viewerId: string | u
 
 export async function listMyProjects(viewerId: string) {
   return db.project.findMany({
-    where: { ownerId: viewerId, status: { not: "REMOVED" } },
+    where: { OR: [{ ownerId: viewerId }, { members: { some: { userId: viewerId, role: { in: ["OWNER", "MAINTAINER"] } } } }], status: { not: "REMOVED" } },
     orderBy: { updatedAt: "desc" },
     select: {
       ...projectCardSelect,
       status: true,
+      ownerId: true,
       _count: { select: { likes: true, follows: true, tries: true, surveys: true, raffles: true } },
     },
   });

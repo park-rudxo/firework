@@ -13,6 +13,8 @@ import { getViewer } from "@/lib/session";
 export const metadata: Metadata = { title: "알림" };
 
 const ICON: Record<NotificationType, typeof Bell> = {
+  BUG_REPORTED: Flag,
+  BUG_STATUS_CHANGED: MessageSquare,
   RAFFLE_WON: Gift,
   RAFFLE_READY_TO_DRAW: Gift,
   RAFFLE_CONTACT_SUBMITTED: Gift,

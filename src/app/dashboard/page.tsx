@@ -29,7 +29,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">내 프로젝트</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            설문을 열어 피드백을 받고, 경품 추첨으로 참여를 끌어올릴 수 있습니다.
+            진행 소식을 게시하고, 버그 신고와 피드백을 관리하세요.
           </p>
         </div>
         <Link
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <Link href={`/projects/${project.slug}`} className="font-medium hover:underline">
+                  <Link href={`/dashboard/projects/${project.slug}/community`} className="font-medium hover:underline">
                     {project.name}
                   </Link>
                   <span
@@ -79,6 +79,8 @@ export default async function DashboardPage() {
               </div>
 
               <div className="flex gap-2 text-sm">
+                <Link href={`/dashboard/projects/${project.slug}/community`} className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted">소식·버그</Link>
+                {project.ownerId === viewer.id ? <>
                 <Link
                   href={`/dashboard/projects/${project.slug}/feedback`}
                   className="rounded-xl border border-border px-3.5 py-2 hover:bg-surface-muted"
@@ -91,6 +93,7 @@ export default async function DashboardPage() {
                 >
                   운영
                 </Link>
+                </> : null}
               </div>
             </li>
           ))}

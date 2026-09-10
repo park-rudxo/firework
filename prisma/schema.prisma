@@ -41,6 +41,10 @@ model User {
   reportsFiled         Report[]              @relation("Reporter")
   reportsResolved      Report[]              @relation("ReportResolver")
   notifications        Notification[]
+  mattermostIdentity   MattermostIdentity?
+  bugReports           BugReport[]
+  projectUpdates       ProjectUpdate[]
+  deliveries           MattermostDelivery[]
 
   @@map("user")
 }
@@ -192,6 +196,9 @@ model Project {
   surveys  Survey[]
   raffles  Raffle[]
   featured FeaturedSlot[]
+  updates ProjectUpdate[]
+  bugs BugReport[]
+  deliveries MattermostDelivery[]
 
   @@index([status, publishedAt])
   @@index([category, status])
@@ -211,6 +218,8 @@ model ProjectMember {
   userId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      ProjectMemberRole @default(CONTRIBUTOR)
+  notifyManagement Boolean @default(false)
+  notificationChangedAt DateTime @default(now())
   createdAt DateTime          @default(now())
 
   @@unique([projectId, userId])
@@ -271,6 +280,9 @@ model ProjectFollow {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  notifyUpdates Boolean @default(false)
+  notifyRecruitment Boolean @default(false)
+  notificationChangedAt DateTime @default(now())
 
   @@id([projectId, userId])
   @@index([userId])
@@ -604,6 +616,8 @@ model Report {
 // ─────────────────────────────────────────────────────────────
 
 enum NotificationType {
+  BUG_REPORTED
+  BUG_STATUS_CHANGED
   RAFFLE_WON // 당첨자에게
   RAFFLE_READY_TO_DRAW // 제작자에게, 응모 마감
   RAFFLE_CONTACT_SUBMITTED // 제작자에게, 당첨자가 연락처를 냄
@@ -612,6 +626,94 @@ enum NotificationType {
   REPORT_RESOLVED // 제작자에게, 조치 결과
   BROKEN_LINK_REPORTED // 제작자에게
   ADMIN_GRANTED // 관리자로 임명됨
+}
+
+// Identity is verified server-side against the fixed SSAFY Mattermost host.
+// No user OAuth tokens or personal webhooks are retained.
+model MattermostIdentity {
+  userId String @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mattermostUserId String @unique
+  username String
+  verifiedAt DateTime @default(now())
+}
+
+enum ProjectUpdateKind {
+  UPDATE
+  RECRUITMENT
+}
+
+model ProjectUpdate {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId String
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  kind ProjectUpdateKind @default(UPDATE)
+  title String
+  body String
+  createdAt DateTime @default(now())
+  @@index([projectId, createdAt])
+}
+
+enum BugStatus {
+  OPEN
+  INVESTIGATING
+  FIXED
+}
+
+model BugReport {
+  id String @id @default(uuid())
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  title String
+  description String
+  status BugStatus @default(OPEN)
+  resolution String @default("")
+  notifyStatus Boolean @default(false)
+  notificationChangedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([projectId, createdAt])
+  @@index([reporterId, createdAt])
+}
+
+enum DeliveryKind {
+  UPDATE
+  RECRUITMENT
+  MANAGEMENT
+  BUG_STATUS
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+// Transactional outbox: create alongside the event, recheck consent before sending.
+model MattermostDelivery {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind DeliveryKind
+  sourceId String
+  dedupeKey String @unique
+  status DeliveryStatus @default(PENDING)
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil DateTime?
+  leaseToken String?
+  lastError String?
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@index([status, availableAt])
 }
 
 model Notification {

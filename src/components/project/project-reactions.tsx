@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Bell, BellRing, Heart, Check, Hand } from "lucide-react";
+import { Heart, Check, Hand } from "lucide-react";
 
-import { toggleFollow, toggleLike, toggleTry } from "@/features/project/actions";
+import { toggleLike, toggleTry } from "@/features/project/actions";
 
 type Counts = { likes: number; follows: number; tries: number };
 type Reactions = { liked: boolean; following: boolean; tried: boolean };
@@ -64,15 +65,9 @@ export function ProjectReactions({
         label="써봤어요"
         count={state.tries}
       />
-      <ReactionButton
-        active={state.following}
-        onClick={() => run("following", "follows", toggleFollow)}
-        activeIcon={BellRing}
-        idleIcon={Bell}
-        label={state.following ? "관심 해제" : "관심 등록"}
-        count={state.follows}
-        title="관심 등록하면 이 프로젝트의 일정이 내 캘린더에 표시됩니다."
-      />
+      <Link href={`/projects/${slug}/community`} className="rounded-xl border border-border px-3 py-2 text-sm">
+        {initial.following ? "구독 중 · 알림 설정" : "구독 · 알림 설정"}
+      </Link>
       <ReactionButton
         active={state.liked}
         onClick={() => run("liked", "likes", toggleLike)}
