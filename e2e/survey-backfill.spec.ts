@@ -192,7 +192,11 @@ test("근거를 확인한 뒤 실행하는 스크립트는 예전 공개분만 �
     await box.seed([0, 1, 2, 3, 4, 5, 6].map((total) => ({ id: `survey-${total}`, total })));
     await box.applySticky();
 
-    expect(await box.run(CONFIRMED_SQL)).toMatchObject({ blocked: false });
+    await box.client.query(CONFIRMED_SQL.split("BEGIN;")[0]!);
+    await box.client.query(`INSERT INTO verified_reveal_manifest
+      SELECT id, "surveyId", 'pre-sticky fixture snapshot' FROM survey_response
+      WHERE "surveyId" IN ('survey-3','survey-4','survey-5','survey-6')`);
+    expect(await box.run(CONFIRMED_SQL.replace(/ROLLBACK;\s*$/, "COMMIT;"))).toMatchObject({ blocked: false });
 
     for (const total of [3, 4, 5, 6]) {
       const state = await box.state(`survey-${total}`);
@@ -205,6 +209,58 @@ test("근거를 확인한 뒤 실행하는 스크립트는 예전 공개분만 �
 
     // 되돌린 뒤에는 마이그레이션이 더 막을 것이 없다.
     expect(await box.run(PRESERVE_SQL)).toMatchObject({ blocked: false });
+  });
+});
+
+test("수동 복구는 빈 목록을 거절하고 검증된 ID만 공개하며 기본은 롤백한다", async () => {
+  await withSandbox(async (box) => {
+    await box.seed([{ id: "s", total: 5 }]);
+    await box.applySticky();
+    expect(await box.run(CONFIRMED_SQL)).toMatchObject({ blocked: true });
+    await box.client.query(CONFIRMED_SQL.split("BEGIN;")[0]!);
+    await box.client.query(`INSERT INTO verified_reveal_manifest SELECT id,"surveyId",'verified backup' FROM survey_response`);
+    await box.add("s", "new unverified response");
+    const before = await box.state("s");
+    expect(await box.run(CONFIRMED_SQL)).toMatchObject({ blocked: false });
+    expect(await box.state("s")).toEqual(before);
+    expect(await box.run(CONFIRMED_SQL.replace(/ROLLBACK;\s*$/, "COMMIT;"))).toMatchObject({ blocked: false });
+    expect((await box.state("s")).revealed).toBe(5);
+    expect((await box.state("s")).total).toBe(6);
+  });
+});
+
+test("수동 복구는 다른 설문의 ID를 거절한다", async () => {
+  await withSandbox(async (box) => {
+    await box.seed([{ id: "s", total: 4 }]);
+    await box.applySticky();
+    await box.client.query(CONFIRMED_SQL.split("BEGIN;")[0]!);
+    await box.client.query(`INSERT INTO verified_reveal_manifest SELECT id,'wrong-survey','backup' FROM survey_response`);
+    const before = await box.state("s");
+    expect(await box.run(CONFIRMED_SQL)).toMatchObject({ blocked: true });
+    expect(await box.state("s")).toEqual(before);
+  });
+});
+
+test("수동 복구 트랜잭션 중 신규 INSERT는 잠금으로 차단된다", async () => {
+  await withSandbox(async (box) => {
+    await box.seed([{ id: "s", total: 4 }]);
+    await box.applySticky();
+    await box.client.query(CONFIRMED_SQL.split("BEGIN;")[0]!);
+    await box.client.query(`INSERT INTO verified_reveal_manifest SELECT id,"surveyId",'backup' FROM survey_response`);
+    const writer = new Client({ connectionString: process.env.DATABASE_URL });
+    await writer.connect();
+    try {
+      await writer.query(`SET search_path TO "${box.schema}"; SET lock_timeout='250ms'`);
+      await box.client.query(CONFIRMED_SQL.replace(/ROLLBACK;\s*$/, ""));
+      await expect(writer.query(`INSERT INTO survey_response (id,"surveyId",answers) VALUES ('new','s','{}')`)).rejects.toMatchObject({ code: "55P03" });
+      await box.client.query("COMMIT");
+      await writer.query(`INSERT INTO survey_response (id,"surveyId",answers) VALUES ('new','s','{}')`);
+      expect((await box.state("s")).revealed).toBe(4);
+      expect((await box.state("s")).total).toBe(5);
+    } finally {
+      await box.client.query("ROLLBACK");
+      await writer.end();
+    }
   });
 });
 
