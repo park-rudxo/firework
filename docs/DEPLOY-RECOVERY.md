@@ -31,3 +31,14 @@ LIMIT 10;
 - 저장소 변경이 필요하면 복구 관련 파일만 별도 커밋. 적용된 과거 SQL은 임의 수정하지 않는다.
 - HANDOFF: 원인, 대상 환경, 적용 전/후 상태, 실행한 명령(비밀값 제외), 데이터 검증, 남은 작업을 기록.
 - DB 상태 확인 결과는 REVIEW.md의 기존 응답 백필 판단에도 사용한다. 복구 후 원래 3개 수정 작업으로 복귀한다.
+
+## 2026-09-11 · Astra 운영 DB 복구 완료
+- 사용자 요청으로 예외적으로 Astra가 실행. 운영 host는 ep-winter-paper-b3bsckcs, neondb/public.
+- 원인: 과거 Claude의 20260910044458_subscription_notification_bugreport_update가 먼저 성공해 ProjectUpdateKind(PROGRESS/RELEASE/FIX/NOTICE)가 존재했음.
+- 백업 recovery-before-community-20260910 (br-crimson-paper-b3iprxcd), 2026-09-17 17:58 KST 자동 삭제. 전날 복제 DB에서 전체 복구 시험 후 롤백 완료.
+- 운영에서 기존 타입을 LegacyProjectUpdateKind로 보존하고 원본 community_mattermost SQL 전체 적용. 트랜잭션 내 원본 기준 DB와 컬럼/기본값/PK/FK/index 127개 항목 및 enum 일치 검증 후 커밋.
+- 계정 3개 보존. 프로젝트/구독/팀/설문 및 과거 커뮤니티 테이블은 각 0개 유지. 테이블/데이터 삭제 없음.
+- 공식 Prisma migrate resolve --applied 20260910040000_community_mattermost 성공 (2026-09-11 05:00 UTC). 이후 이력/스키마 재검증 완료. 미해결 실패 기록 없음.
+- TCP 연결 시간 초과로 Neon 공식 serverless Client 및 localhost 전용 TCP→인증서 검증 WSS 임시 프록시 사용. Prisma CLI 종료 시 프록시 종료. 비밀값 문서/커밋에 없음.
+- 후속 2개 마이그레이션은 미적용. 재배포/main 병합 미실행. REVIEW.md 3개 수정 및 Preview/Production DB 분리 확인 후 진행.
+- 과거 성공 migration은 현 브랜치에 없는 이력으로 보존됨. 다음 스키마 정리에서 다루며 migrate reset 금지.
