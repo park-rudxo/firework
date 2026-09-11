@@ -1,13 +1,20 @@
 # 지금 상태
-_2026-09-11 · Astra → Claude Opus_
+_2026-09-11 · Astra → Claude Opus, 원격 작업 병합 반영_
 
-- 작업 브랜치: claude/firework-reliability-team-invites. main 병합 보류.
-- 담당: Claude 구현·테스트 / Astra 검토·병합·운영 배포. Astra의 예외적 DB 복구 작업은 종료.
-- 다음 작업: REVIEW.md를 읽고 순서대로 3개 커밋 — (1) 설문 모든 집계의 공개 집합 통일 (2) 제출 동시성·기존 공개 응답 백필 보존 (3) 초대 승인 인증 ID·경쟁 조건 수정.
-- 운영 DB: community_mattermost 복구 및 공식 Prisma resolve 완료. 127개 스키마 항목 검증, 계정 3개 보존. 후속 2개 migration은 미적용, 설문 응답 0개. 상세 DEPLOY-RECOVERY.md 마지막 항목.
-- DB 복구 재실행·과거 테이블 삭제 불필요. 로컬 .env는 운영 연결이므로 테스트에 사용 금지. DIRECT_DATABASE_URL/DATABASE_URL 모두 격리 DB로 설정.
-- 로컬 .env.example 삭제는 사용자 변경으로 보존. 관련 없는 변경은 커밋하지 않는다.
-- Vercel push 자동 migration 위험: Preview DB 분리 또는 자동 배포 차단 확인 전 push 보류. 로컬 3개 커밋과 검사 결과로 우선 인계.
-- 실제 PostgreSQL 동시성 테스트는 .github/workflows/ci.yml의 기존 e2e 잡 사용. check 잡에 DB 추가하지 않는다.
-- 실제 SSAFY OAuth·봇·DM은 미확인. 발송하지 않는다.
-- 완료 시 REVIEW.md의 보고 형식으로 이 파일 갱신. Astra가 최종 검토 후 병합·배포한다.
+- 브랜치: claude/firework-reliability-team-invites. main 병합·배포 최종 검토는 Astra.
+- Opus의 3개 수정은 이미 도착했다: 679c3e0 설문 집계, a579540 제출 직렬화/백필, 8f02d59 초대 인증 ID. 같은 기능을 다시 구현하지 않는다.
+- d97b288 복구 준비와 f1d4f8f 인계도 보존했다. Claude 보고: 타입/린트/빌드 통과, 단위 184개, E2E 23개. Astra는 아직 이 구현 전체를 검증하지 않았다.
+- Astra 운영 복구 완료: 기존 타입 LegacyProjectUpdateKind 보존, community_mattermost 적용 및 공식 Prisma resolve 성공. 스키마 127개 항목 일치, 계정 3개 보존. DEPLOY-RECOVERY.md 마지막 항목이 실제 운영 결과다. docs/recovery의 복구 스크립트를 운영에 다시 실행하지 않는다.
+- 2026-09-11 복구 검증 시 운영 후속 migration은 미적용, 설문 응답 0개였다. 이후 자동 배포 여부는 별도 확인 필요.
+
+## Opus의 다음 작업 — 기존 구현의 보완
+1. REVIEW.md 최신 통과 조건에 기존 3개 커밋을 대조한다. 이미 충족한 부분은 재작성하지 않는다. 미충족 항목만 후속 커밋으로 수정한다.
+2. 우선 백필 20260910090000을 재검토한다. 현재 count>=3의 모든 응답을 true로 바꾸는 SQL은 sticky_reveal 적용 이후 들어온 새 응답까지 공개할 수 있다. 기존 3개 공개 + 신규 1개 미공개 상태에서 재현 테스트를 추가한다. 대상 환경의 적용 이력/기존 집합 근거 없이 모두 공개하지 않는다. 안전하게 구분 불가하면 배포 차단 사유와 선택지를 보고한다.
+3. 동시성 테스트를 barrier/잠금 관찰로 겹치게 만들어 검출이 우연한 타이밍에 의존하지 않게 한다. 초대 해제/교체 경쟁과 기존 역할 보존은 REVIEW.md 조건으로 확인한다.
+4. 변경 관련 테스트 후 최종 타입/린트/단위/빌드/E2E를 실행하고 명령·결과·미실행 항목·커밋 ID를 보고한다. PostgreSQL 통합 테스트가 기존 E2E에 포함되면 별도 명령/잡 추가는 불필요하다.
+
+## 환경 경계
+- 로컬 .env는 운영 연결. 테스트는 DIRECT_DATABASE_URL과 DATABASE_URL 모두 격리 DB로 지정. seed/reset/db push를 운영에서 실행하지 않는다.
+- .env.example 삭제는 사용자 변경으로 보존. .env를 Git에 추가하지 않는다.
+- 이번 인계 push는 사용자가 명시적으로 요청했다. 향후 구현 push 전 Preview DB 분리/자동 migration 경로를 확인한다. 운영 migration/main 병합은 맡지 않는다.
+- 실제 SSAFY OAuth·봇·DM 권한은 미확인. 발송하지 않는다.

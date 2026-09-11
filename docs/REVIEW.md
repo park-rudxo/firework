@@ -1,5 +1,5 @@
 # Claude 수정 지시 — main 병합 전
-갱신: 2026-09-11. P3009 운영 복구는 Astra가 완료했다. 복구를 재실행하지 않는다.
+갱신: 2026-09-11. P3009 운영 복구는 Astra가 완료했다. 복구를 재실행하지 않는다. 원격 679c3e0/a579540/8f02d59 구현이 도착했으므로 아래는 재구현 지시가 아니라 검증 기준이다. 다음 작업은 HANDOFF.md의 보완 목록을 따른다.
 검토 기준: 2df7a48. 담당: 구현·테스트 Claude / 설계·병합 Astra.
 브랜치: claude/firework-reliability-team-invites. 기존 커밋은 재작성하지 말고 아래 3개 커밋을 순서대로 추가한다.
 
@@ -53,3 +53,4 @@
 - 최종 명령: npm run typecheck, npm run lint, npm test, npm run build, npm run e2e 및 새 PostgreSQL 통합 테스트 명령. 새 명령을 package.json에 명시하고 CI e2e 잡에서 실행되게 한다. 각 명령의 성공/실패/미실행을 구분한다.
 - HANDOFF에는 커밋별 변경 요약, 3개 커밋 ID, 테스트 명령/결과, 미해결 항목, push 여부를 기록한다. push는 위 환경 경계가 확인됐을 때만 한다. 실제 Mattermost 발송은 수행하지 않는다.
 - 완료 보고 형식: ① 커밋 3개 ② 재현 실패→수정 후 통과 근거 ③ PostgreSQL 경쟁/백필 검증 ④ 전체 검사 결과 ⑤ Astra가 결정해야 할 사항. 접근 불가 검증은 통과로 쓰지 않는다.
+

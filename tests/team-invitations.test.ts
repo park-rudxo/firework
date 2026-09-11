@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => {
       notification: model(),
       mattermostDelivery: model(),
       $transaction: vi.fn(),
+      $queryRaw: vi.fn(),
     },
     viewer: vi.fn(),
     access: vi.fn(),
@@ -136,17 +137,29 @@ describe("초대에 답하기", () => {
     id: "invite-1",
     inviteeId: "kim",
     inviterId: "owner",
+    inviteeMattermostUserId: "mm-kim",
     role: "MAINTAINER",
     status: "PENDING",
     projectId: "project",
     project: { slug: "app", name: "모아모아", status: "PUBLISHED", ownerId: "owner" },
   };
 
+  /** 지금 연결돼 있는 Mattermost 계정. FOR UPDATE 로 잠그고 읽는다. */
+  const connectedAs = (mattermostUserId: string | null) =>
+    mocks.db.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
+      const sql = strings.join("");
+      if (sql.includes("MattermostIdentity")) {
+        return Promise.resolve(mattermostUserId ? [{ mattermostUserId }] : []);
+      }
+      return Promise.resolve([{ id: "invite-1" }]);
+    });
+
   beforeEach(() => {
     mocks.viewer.mockResolvedValue({ id: "kim" });
     mocks.db.projectInvitation.findUnique.mockResolvedValue(pending);
     mocks.db.projectInvitation.updateMany.mockResolvedValue({ count: 1 });
-    mocks.db.mattermostIdentity.findUnique.mockResolvedValue({ userId: "kim" });
+    mocks.db.projectMember.findUnique.mockResolvedValue(null);
+    connectedAs("mm-kim");
   });
 
   it("수락하면 상태 전환과 멤버십 생성이 한 트랜잭션에서 일어난다", async () => {
@@ -158,14 +171,14 @@ describe("초대에 답하기", () => {
 
     expect(mocks.db.$transaction).toHaveBeenCalled();
     expect(mocks.db.projectInvitation.updateMany.mock.calls[0]![0].data.status).toBe("ACCEPTED");
-    expect(mocks.db.projectMember.upsert).toHaveBeenCalled();
+    expect(mocks.db.projectMember.create).toHaveBeenCalled();
   });
 
   it("수락해도 알림은 켜지지 않는다", async () => {
     await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" })).catch(
       () => undefined,
     );
-    const create = mocks.db.projectMember.upsert.mock.calls[0]![0].create;
+    const create = mocks.db.projectMember.create.mock.calls[0]![0].data;
     // 팀원이 된 것과 메시지를 받겠다는 것은 다른 일이다. 후자는 본인이 따로 켠다.
     expect(create.notifyManagement).toBeUndefined();
     expect(mocks.db.mattermostDelivery.create).not.toHaveBeenCalled();
@@ -177,14 +190,14 @@ describe("초대에 답하기", () => {
     ).rejects.toThrow("NEXT_REDIRECT");
 
     expect(mocks.db.projectInvitation.updateMany.mock.calls[0]![0].data.status).toBe("DECLINED");
-    expect(mocks.db.projectMember.upsert).not.toHaveBeenCalled();
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
   });
 
   it("남의 초대에는 답할 수 없다", async () => {
     mocks.viewer.mockResolvedValue({ id: "stranger" });
     const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
     expect(result.error).toBeTruthy();
-    expect(mocks.db.projectMember.upsert).not.toHaveBeenCalled();
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
   });
 
   it("이미 취소되거나 거절된 초대는 수락할 수 없다", async () => {
@@ -192,9 +205,11 @@ describe("초대에 답하기", () => {
       vi.clearAllMocks();
       mocks.db.$transaction.mockImplementation((fn) => fn(mocks.db));
       mocks.db.projectInvitation.findUnique.mockResolvedValue({ ...pending, status });
+      connectedAs("mm-kim");
+      mocks.db.projectMember.findUnique.mockResolvedValue(null);
       const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
       expect(result.error).toBeTruthy();
-      expect(mocks.db.projectMember.upsert).not.toHaveBeenCalled();
+      expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
     }
   });
 
@@ -205,12 +220,60 @@ describe("초대에 답하기", () => {
     expect(result.error).toBeTruthy();
   });
 
-  it("승인 시점에 인증 연결을 다시 확인한다", async () => {
-    // 초대받은 뒤 연결을 해제했을 수 있다.
-    mocks.db.mattermostIdentity.findUnique.mockResolvedValue(null);
+  it("승인 시점에 연결이 끊겨 있으면 수락할 수 없다", async () => {
+    connectedAs(null);
     const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
     expect(result.error).toContain("Mattermost");
-    expect(mocks.db.projectMember.upsert).not.toHaveBeenCalled();
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
+  });
+
+  it("초대받을 때와 다른 Mattermost 계정으로는 수락할 수 없다", async () => {
+    // A 로 인증받아 초대받은 뒤 A 를 끊고 B 를 붙여도 수락되면,
+    // 초대한 사람은 A 를 보고 초대했는데 팀에는 B 가 들어온다.
+    connectedAs("mm-someone-else");
+    const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
+
+    expect(result.error).toContain("다른 Mattermost 계정");
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
+    // 실패하면 수락 알림도 생기지 않는다.
+    expect(mocks.db.notification.create).not.toHaveBeenCalled();
+    expect(mocks.db.projectInvitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("원래 계정으로는 정상 수락된다", async () => {
+    connectedAs("mm-kim");
+    await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" })).catch(
+      () => undefined,
+    );
+    expect(mocks.db.projectMember.create).toHaveBeenCalled();
+  });
+
+  it("이미 팀원이면 역할을 덮어쓰지 않고 거절한다", async () => {
+    // upsert 로 덮으면 등록자가 정해둔 역할이 오래된 초대 한 장으로 바뀐다.
+    mocks.db.projectMember.findUnique.mockResolvedValue({ role: "CONTRIBUTOR" });
+    const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
+
+    expect(result.error).toBeTruthy();
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
+    expect(mocks.db.projectInvitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("초대 행을 잠그고 판정한다", async () => {
+    // 승인·취소·중복 승인이 같은 초대에 동시에 오면 한 줄로 세워야
+    // 최종 상태 하나와 그에 맞는 멤버십만 남는다.
+    await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "no" })).catch(
+      () => undefined,
+    );
+    const sql = mocks.db.$queryRaw.mock.calls.map((c) => (c[0] as string[]).join("?"));
+    expect(sql.some((q) => q.includes("project_invitation") && q.includes("FOR UPDATE"))).toBe(true);
+  });
+
+  it("거절은 인증 연결을 요구하지 않는다", async () => {
+    connectedAs(null);
+    await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "no" })).catch(
+      () => undefined,
+    );
+    expect(mocks.db.projectInvitation.updateMany.mock.calls[0]![0].data.status).toBe("DECLINED");
   });
 
   it("삭제된 프로젝트의 초대는 수락할 수 없다", async () => {
@@ -220,7 +283,7 @@ describe("초대에 답하기", () => {
     });
     const result = await respondToInvitation({ error: null }, form({ invitationId: "invite-1", accept: "yes" }));
     expect(result.error).toBeTruthy();
-    expect(mocks.db.projectMember.upsert).not.toHaveBeenCalled();
+    expect(mocks.db.projectMember.create).not.toHaveBeenCalled();
   });
 });
 

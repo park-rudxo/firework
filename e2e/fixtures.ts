@@ -135,3 +135,108 @@ export async function cleanup(userIds: string[], projectIds: string[] = []) {
     for (const id of userIds) await db.query(`DELETE FROM "user" WHERE id = $1`, [id]);
   });
 }
+
+/** 자유서술 한 문항짜리 설문. 동시 제출 검증에 쓴다. */
+export async function createSurvey(
+  projectId: string,
+  options: { existingResponses?: number; existingRevealed?: number } = {},
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  const existing = options.existingResponses ?? 0;
+  // 예전 구현에서 이미 공개돼 있던 상태를 흉내낼 수 있어야 한다.
+  const revealed = options.existingRevealed ?? Math.floor(existing / 3) * 3;
+
+  await withDb(async (db) => {
+    await db.query(
+      `INSERT INTO "Survey" (id,"projectId",title,questions,"isOpen","opensAt","createdAt","updatedAt")
+       VALUES ($1,$2,'동시 제출 검증',$3::jsonb,true,now(),now(),now())`,
+      [
+        id,
+        projectId,
+        JSON.stringify([
+          { id: "free", type: "text", label: "한마디", required: true, maxLength: 1000 },
+        ]),
+      ],
+    );
+    for (let i = 0; i < existing; i += 1) {
+      await db.query(
+        `INSERT INTO survey_response (id,"surveyId",answers,revealed)
+         VALUES ($1,$2,$3::jsonb,$4)`,
+        [randomUUID(), id, JSON.stringify({ free: `기존${i}` }), i < revealed],
+      );
+    }
+  });
+
+  return { id };
+}
+
+export type SurveyState = {
+  total: number;
+  revealed: number;
+  hidden: number;
+  revealedIds: string[];
+};
+
+export async function readSurveyState(surveyId: string): Promise<SurveyState> {
+  return withDb(async (db) => {
+    const rows = await db.query<{ id: string; revealed: boolean }>(
+      `SELECT id, revealed FROM survey_response WHERE "surveyId" = $1 ORDER BY id`,
+      [surveyId],
+    );
+    const revealedIds = rows.rows.filter((r) => r.revealed).map((r) => r.id);
+    return {
+      total: rows.rows.length,
+      revealed: revealedIds.length,
+      hidden: rows.rows.length - revealedIds.length,
+      revealedIds,
+    };
+  });
+}
+
+/** 한 사람이 몇 번 응답·참여·응모했는지. 중복 제출이 새는지 본다. */
+export async function countPerUser(surveyId: string, userId: string) {
+  return withDb(async (db) => {
+    const participations = await db.query(
+      `SELECT 1 FROM survey_participation WHERE "surveyId"=$1 AND "userId"=$2`,
+      [surveyId, userId],
+    );
+    const entries = await db.query(
+      `SELECT 1 FROM raffle_entry e JOIN "Raffle" r ON r.id = e."raffleId"
+       WHERE r."surveyId"=$1 AND e."userId"=$2`,
+      [surveyId, userId],
+    );
+    return { participations: participations.rowCount ?? 0, entries: entries.rowCount ?? 0 };
+  });
+}
+
+/** 연결된 Mattermost 계정을 다른 것으로 갈아끼운다. 초대 대상 고정 검증에 쓴다. */
+export async function reconnectMattermost(userId: string, newMattermostUserId: string) {
+  await withDb((db) =>
+    db.query(`UPDATE "MattermostIdentity" SET "mattermostUserId" = $2 WHERE "userId" = $1`, [
+      userId,
+      newMattermostUserId,
+    ]),
+  );
+}
+
+export async function disconnectMattermost(userId: string) {
+  await withDb((db) => db.query(`DELETE FROM "MattermostIdentity" WHERE "userId" = $1`, [userId]));
+}
+
+/** 초대와 멤버십의 최종 상태. 실패했을 때 아무것도 남지 않았는지 본다. */
+export async function readInviteState(projectId: string, userId: string) {
+  return withDb(async (db) => {
+    const invites = await db.query<{ status: string }>(
+      `SELECT status FROM project_invitation WHERE "projectId"=$1 AND "inviteeId"=$2`,
+      [projectId, userId],
+    );
+    const member = await db.query<{ role: string }>(
+      `SELECT role FROM project_member WHERE "projectId"=$1 AND "userId"=$2`,
+      [projectId, userId],
+    );
+    return {
+      statuses: invites.rows.map((r) => r.status),
+      memberRole: member.rows[0]?.role ?? null,
+    };
+  });
+}

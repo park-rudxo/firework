@@ -93,7 +93,30 @@ export default async function FeedbackPage({
 function Results({ results }: { results: NonNullable<Awaited<ReturnType<typeof getSurveyResults>>> }) {
   return (
     <div className="mt-8">
-      <p className="text-sm text-muted-foreground">응답 {results.responseCount}건</p>
+      {/* 접수 수와 공개 수를 나눠 적는다. 아래 집계는 전부 공개된 묶음에서만 나온 값이라,
+          두 숫자가 다를 때 "왜 평균이 안 움직이지" 로 헷갈리면 안 된다. */}
+      <p className="text-sm text-muted-foreground">
+        접수 {results.responseCount}건
+        {results.revealedCount !== results.responseCount ? (
+          <>
+            {" · "}
+            <span className="text-foreground">공개 {results.revealedCount}건</span>
+            <span className="text-muted-foreground">
+              {" "}
+              (아래 결과는 공개된 {results.revealedCount}건에서만 계산합니다)
+            </span>
+          </>
+        ) : null}
+      </p>
+
+      {!results.individualRevealed ? (
+        <p className="mt-4 flex items-start gap-2 rounded-lg bg-surface-muted p-3 text-xs text-muted-foreground">
+          <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          응답이 {MIN_RESPONSES_TO_REVEAL}건 모이면 결과를 보여드립니다. 지금은 평균도 분포도
+          내보내지 않습니다 — 응답이 한둘일 때는 집계 자체가 곧 그 사람의 답이기 때문입니다.
+          (현재 접수 {results.responseCount}건)
+        </p>
+      ) : null}
 
       {results.ratings.length > 0 ? (
         <section className="mt-6 flex flex-col gap-5">
@@ -109,7 +132,9 @@ function Results({ results }: { results: NonNullable<Awaited<ReturnType<typeof g
 
               <div className="mt-3 flex flex-col gap-1">
                 {r.distribution.map((count, i) => {
-                  const pct = results.responseCount ? (count / results.responseCount) * 100 : 0;
+                  // 분모도 공개된 건수다. 접수 수로 나누면 아직 안 열린 응답의 존재가
+                  // 비율에 묻어 나온다.
+                  const pct = results.revealedCount ? (count / results.revealedCount) * 100 : 0;
                   return (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="w-3 text-muted-foreground">{i + 1}</span>
@@ -160,10 +185,10 @@ function Results({ results }: { results: NonNullable<Awaited<ReturnType<typeof g
       {results.individualRevealed && results.revealedCount < results.responseCount ? (
         <p className="mt-5 flex items-start gap-2 rounded-lg bg-surface-muted p-3 text-xs text-muted-foreground">
           <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          {results.responseCount}건 중 {results.revealedCount}건을 보여드립니다. 개별 응답은{" "}
-          {MIN_RESPONSES_TO_REVEAL}건 단위 묶음으로만 열립니다 — 한 건씩 늘어나면 방금 도착한
-          응답이 무엇인지 드러나기 때문입니다. {MIN_RESPONSES_TO_REVEAL}건이 더 모이면 함께 열립니다.
-          집계는 {results.responseCount}건 전부를 반영합니다.
+          접수된 {results.responseCount}건 중 {results.revealedCount}건까지 공개했습니다. 결과는
+          모두 이 {results.revealedCount}건에서만 계산합니다 — 평균이나 분포를 전체로 내면 공개
+          전후를 빼는 것만으로 방금 도착한 응답의 내용이 복원됩니다.{" "}
+          {MIN_RESPONSES_TO_REVEAL}건이 더 모이면 다음 묶음이 함께 열립니다.
         </p>
       ) : null}
 
@@ -177,7 +202,7 @@ function Results({ results }: { results: NonNullable<Awaited<ReturnType<typeof g
                 <p className="mt-3 flex items-start gap-2 rounded-lg bg-surface-muted p-3 text-xs text-muted-foreground">
                   <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                   응답이 {MIN_RESPONSES_TO_REVEAL}건 이상 모이면 공개됩니다. 응답이 한둘일 때는
-                  내용이 곧 작성자를 가리키기 때문에 익명성을 위해 잠가둡니다. (현재{" "}
+                  내용이 곧 작성자를 가리키기 때문에 익명성을 위해 잠가둡니다. (현재 접수{" "}
                   {results.responseCount}건)
                 </p>
               ) : t.answers.length === 0 ? (

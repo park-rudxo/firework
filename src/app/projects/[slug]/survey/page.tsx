@@ -52,7 +52,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ slug: s
           <CheckCircle2 className="size-6 text-success" aria-hidden />
           <p className="mt-3 font-medium">이미 응답하셨습니다. 고맙습니다.</p>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            내용은 제작자에게 익명으로 전달되었습니다. 어떤 답을 쓰셨는지는 저희도 조회할 수 없어
+            내용은 작성자 정보 없이 전달되었습니다. 어떤 답을 쓰셨는지는 응답과 이어붙일 수 없어
             다시 보여드릴 수 없습니다.
           </p>
         </div>
@@ -70,11 +70,12 @@ export default async function SurveyPage({ params }: { params: Promise<{ slug: s
       <div className="rounded-card border border-border bg-surface p-4">
         <h2 className="flex items-center gap-2 text-sm font-medium">
           <ShieldCheck className="size-4 text-success" aria-hidden />
-          이 응답은 제작자에게도 익명입니다
+          이 응답은 작성자 정보 없이 전달됩니다
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          응답 내용과 응답자 정보는 서로 연결되지 않는 별개의 테이블에 저장됩니다. 제작자는 물론
-          운영자도 누가 어떤 답을 썼는지 알 수 없습니다.{" "}
+          응답 내용과 응답자 정보는 서로 연결되지 않는 별개의 테이블에 저장되고, 제작자 화면에
+          둘을 잇는 조회가 없습니다. 다만 참여자가 적을 때는 내용만으로 짐작될 수 있고, 서버
+          운영자까지 막았다고 말하지는 않겠습니다.{" "}
           <Link href="/about/anonymity" className="underline">
             어떻게 보장하나요?
           </Link>

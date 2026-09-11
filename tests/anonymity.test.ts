@@ -7,8 +7,8 @@ import {
   ANONYMITY_PROMISE,
   canRevealIndividualResponses,
   MIN_RESPONSES_TO_REVEAL,
+  batchToOpen,
   revealedResponseCount,
-  shouldOpenNextBatch,
 } from "@/features/survey/anonymity";
 
 /**
@@ -122,20 +122,25 @@ describe("개별 응답 공개 단위", () => {
     expect(revealedResponseCount(2)).toBe(0);
   });
 
-  it("3의 배수에 닿을 때만 묶음을 연다", () => {
+  it("안 열린 것이 3건 모여야 한 묶음이 열린다", () => {
     // 임계만 두고 그 위로는 전부 보여주면, 제작자가 결과 화면을 열어둔 채 기다리다가
     // 3건에서 4건이 되는 순간 "방금 늘어난 하나" 를 지목할 수 있다.
     // 그러면 그 한 건은 방금 부탁했던 사람의 것으로 좁혀진다.
-    expect(shouldOpenNextBatch(1)).toBe(false);
-    expect(shouldOpenNextBatch(2)).toBe(false);
-    expect(shouldOpenNextBatch(3)).toBe(true);
-    expect(shouldOpenNextBatch(4)).toBe(false);
-    expect(shouldOpenNextBatch(5)).toBe(false);
-    expect(shouldOpenNextBatch(6)).toBe(true);
+    expect(batchToOpen(0)).toBe(0);
+    expect(batchToOpen(1)).toBe(0);
+    expect(batchToOpen(2)).toBe(0);
+    expect(batchToOpen(3)).toBe(3);
+    expect(batchToOpen(4)).toBe(3);
+    expect(batchToOpen(5)).toBe(3);
+    expect(batchToOpen(6)).toBe(6);
   });
 
-  it("0건에서는 열 것이 없다", () => {
-    expect(shouldOpenNextBatch(0)).toBe(false);
+  it("전체 건수가 아니라 안 열린 건수로 센다", () => {
+    // 예전 구현에서 5건이 모두 공개돼 있던 설문은 전체가 3의 배수가 아니다.
+    // 전체로 세면 그런 설문은 영영 열리지 않는다. 남은 것만 세면 5 → 새 3건에서 8 이 된다.
+    expect(batchToOpen(1)).toBe(0);
+    expect(batchToOpen(2)).toBe(0);
+    expect(batchToOpen(3)).toBe(3);
   });
 
   it("보이는 건수는 묶음 단위로만 늘어난다", () => {
