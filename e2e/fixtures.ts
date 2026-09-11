@@ -257,6 +257,16 @@ export type LockHold = {
   waiting(): Promise<number>;
   /** n 개가 막힐 때까지 기다린다. 시간 안에 못 채우면 던진다. */
   waitFor(n: number, timeoutMs?: number): Promise<void>;
+  /**
+   * 나를 기다리며 막혀 있는 세션들이 **이미 쥐고 있는** 테이블.
+   *
+   * "멈췄다" 는 사실만으로는 어디서 멈췄는지 알 수 없다. 특히 survey_response 와
+   * survey_participation 에는 Survey 로 가는 FK 가 있어서, 앱이 명시적 잠금을 잡지
+   * 않아도 INSERT 의 FK 검사(부모 행 KEY SHARE)가 이 holder 에 막힌다. 그래서 멈춘
+   * 위치를 가리려면 그 세션이 무엇을 이미 잡았는지를 봐야 한다 — INSERT 를 시작했다면
+   * 대상 테이블의 RowExclusiveLock 을 이미 쥐고 있다.
+   */
+  relationsHeldByWaiters(): Promise<string[]>;
   /** 잠금을 풀어 멈춰 있던 것들을 한꺼번에 내보낸다. */
   release(): Promise<void>;
 };
@@ -284,7 +294,7 @@ export async function holdRowLock(
   // 같은 행을 여러 세션이 기다리면 전부 내 transactionid 를 기다리는 것이 아니다.
   // 첫 번째만 그렇고, 나머지는 그 앞사람이 쥔 tuple 잠금 뒤에 줄을 선다. 그래서
   // 한 단계만 보면 언제나 1 로 세어진다. pg_blocking_pids 로 줄 전체를 따라간다.
-  const WAITERS = `
+  const BLOCKED = `
     WITH RECURSIVE blocked AS (
       SELECT a.pid
         FROM pg_stat_activity a
@@ -296,7 +306,15 @@ export async function holdRowLock(
        WHERE a.datname = current_database()
          AND b.pid = ANY (pg_blocking_pids(a.pid))
     )
-    SELECT count(*)::int AS n FROM blocked
+  `;
+  const WAITERS = `${BLOCKED} SELECT count(*)::int AS n FROM blocked`;
+  const HELD = `
+    ${BLOCKED}
+    SELECT DISTINCT c.relname::text AS rel
+      FROM pg_locks l
+      JOIN blocked b ON b.pid = l.pid
+      JOIN pg_class c ON c.oid = l.relation
+     WHERE l.granted AND l.relation IS NOT NULL
   `;
 
   let released = false;
@@ -317,6 +335,10 @@ export async function holdRowLock(
         }
         await new Promise((r) => setTimeout(r, 100));
       }
+    },
+    async relationsHeldByWaiters() {
+      const r = await client.query<{ rel: string }>(HELD);
+      return r.rows.map((row) => row.rel);
     },
     async release() {
       if (released) return;

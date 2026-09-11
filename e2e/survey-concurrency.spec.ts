@@ -86,9 +86,17 @@ function expectInvariants(before: SurveyState, after: SurveyState) {
   for (const id of before.revealedIds) expect(after.revealedIds).toContain(id);
 }
 
-test("제출은 응답을 넣기 전에 설문 행 잠금 앞에서 멈춘다", async ({ browser, baseURL }) => {
-  // 직렬화 지점이 실제로 있고, 그것이 응답 삽입보다 **앞** 이라는 것을 관찰로 확인한다.
-  // 잠금이 삽입 뒤에 있으면 두 트랜잭션이 서로의 응답을 못 본 채 각자 묶음을 연다.
+test("제출은 응답을 넣기 전에 설문 행 잠금을 먼저 잡는다", async ({ browser, baseURL }) => {
+  // 직렬화 지점이 응답 삽입보다 **앞** 이어야 한다. 뒤에 있으면 두 트랜잭션이 서로의
+  // 응답을 못 본 채 각자 묶음을 연다.
+  //
+  // "멈췄다" 는 사실만으로는 증명이 안 된다. survey_response·survey_participation 에는
+  // Survey 로 가는 FK 가 있어서, 앱이 잠금을 잡지 않아도 INSERT 의 FK 검사가 이 holder 에
+  // 막힌다 — 잠금을 빼도 멈추는 것은 똑같다. 다른 연결에서 응답 수를 세는 것도 안 된다.
+  // 미커밋 INSERT 는 어차피 보이지 않으므로 순서와 무관하게 그대로다.
+  //
+  // 그래서 멈춘 세션이 **이미 무엇을 쥐고 있는지** 를 본다. INSERT 를 시작했다면 대상
+  // 테이블의 RowExclusiveLock 을 이미 쥐고 있다.
   const owner = await createUser();
   const responder = await createUser();
   const project = await createProject(owner.userId);
@@ -100,17 +108,21 @@ test("제출은 응답을 넣기 전에 설문 행 잠금 앞에서 멈춘다", 
     await signIn(context, responder.userId, baseURL!);
     const page = await context.newPage();
     await page.goto(`/projects/${project.slug}/survey`);
-    await page.getByLabel("한마디").fill("잠금 앞에서 멈춘다");
-    void page.getByRole("button", { name: "익명으로 제출" }).click().catch(() => undefined);
+    await page.getByLabel("한마디").fill("잠금을 먼저 잡는다");
+    const submitted = page.waitForResponse(
+      (r) => r.request().method() === "POST" && r.url().includes(`/projects/${project.slug}/survey`),
+    );
+    await page.getByRole("button", { name: "익명으로 제출" }).click();
 
     await hold.waitFor(1);
-    expect(await hold.waiting()).toBeGreaterThanOrEqual(1);
+    const held = await hold.relationsHeldByWaiters();
 
-    // 멈춰 있는 동안에는 아무것도 들어가지 않았어야 한다.
-    const during = await readSurveyState(survey.id);
-    expect(during.total, "잠금 앞에서 멈췄으므로 응답이 아직 들어가면 안 된다").toBe(2);
+    expect(held, "설문 행 잠금까지는 갔어야 한다").toContain("Survey");
+    expect(held, "아직 응답을 넣기 시작하면 안 된다").not.toContain("survey_response");
+    expect(held, "참여 기록도 아직이다").not.toContain("survey_participation");
 
     await hold.release();
+    expect((await submitted).status()).toBeLessThan(400);
     await page.getByText(/응답 완료|이미 응답하셨습니다/).first().waitFor({ timeout: 30_000 });
 
     const after = await readSurveyState(survey.id);
