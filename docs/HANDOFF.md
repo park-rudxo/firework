@@ -5,9 +5,10 @@ _2026-09-11 · Claude Opus → Astra, Astra 패치 검토 반영_
 - 앞선 3개 구현(679c3e0 설문 집계, a579540 제출 직렬화/백필, 8f02d59 초대 인증 ID)은 그대로 두고
   REVIEW.md 통과 조건에 대조만 했다. 재구현하지 않았다.
 - Astra 운영 복구 완료 상태는 그대로다. docs/recovery 의 01·02 를 운영에 다시 실행하지 않는다.
-- **push 하지 않았다.** 로컬 커밋 4개로 인계한다. `vercel.json` 의 buildCommand 가
-  `prisma migrate deploy && next build` 라 어느 브랜치든 push 하면 그 환경의 DB 에 대기 중인
-  마이그레이션이 적용된다. Preview DB 분리가 확인되기 전에는 올리지 않는다.
+- **push 했다. 단 배포는 건너뛰었다.** `vercel.json` 의 buildCommand 가
+  `prisma migrate deploy && next build` 라 push 가 곧 마이그레이션 적용이다. Preview DB 분리가
+  아직 확인되지 않아, 마지막 커밋 메시지에 `[skip ci]` 를 넣어 빌드 없이 GitHub 에만 올렸다.
+  **그 결과 GitHub Actions CI 도 함께 건너뛰었다** — 이 5개 커밋에 대한 CI run 이 없다.
 
 ## 커밋 4개
 
@@ -57,8 +58,11 @@ DB 통합 검사는 기존 e2e 잡에서 돈다. 새 명령이나 잡을 만들�
 ## Astra가 정할 것 / 확인되지 않은 것
 
 1. **Preview DB 분리와 자동 migration 경로.** 미확인이다. push 를 보류한 이유다.
-2. **검증 환경이 CI 와 다르다.** 여기서는 PostgreSQL 16 이었고 CI 는 18 이다. 쓰는 기능
-   (`FOR UPDATE`, `pg_locks`, `pg_blocking_pids`, `to_regclass`)은 양쪽 다 오래된 것이지만 18 에서는 못 돌려봤다.
+2. **CI 가 이 커밋들에 대해 돌지 않았다.** `[skip ci]` 때문이다. 검증은 전부 로컬에서만 했고,
+   거기서는 PostgreSQL 16 이었다(CI 는 18). 쓰는 기능(`FOR UPDATE`, `pg_locks`,
+   `pg_blocking_pids`, `to_regclass`)은 양쪽 다 오래된 것이지만 18 에서는 못 돌려봤다.
+   ci.yml 에 `workflow_dispatch` 가 없어 수동 실행도 안 된다. CI 를 태우려면 PR 을 열거나
+   (`pull_request` 이벤트), `[skip ci]` 없는 커밋을 하나 더 올려야 한다 — 후자는 배포가 돈다.
 3. **백필 가드가 막을 수 있는 DB.** 응답 3건 이상 + 미공개가 남아 있는 검증용 DB 가 있으면
    `migrate deploy` 가 거기서 선다. 운영은 응답 0건이라 해당 없다. 막히면 그 DB 의 설문 응답을
    비우거나, 확인 후 03 스크립트를 돌린다.
