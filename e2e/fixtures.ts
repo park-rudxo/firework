@@ -240,3 +240,133 @@ export async function readInviteState(projectId: string, userId: string) {
     };
   });
 }
+
+/**
+ * 특정 행을 잠근 채 들고 있는다. **동시성 검사의 출발점이다.**
+ *
+ * 여러 요청을 `Promise.all` 로 함께 터뜨리는 것만으로는 실제로 겹쳤다는 보장이 없다.
+ * 앞의 것이 끝난 뒤 뒤의 것이 시작해도 검사는 통과하고, 그러면 잠금을 빼도 통과한다.
+ * 검출이 그날의 타이밍 운에 달리는 셈이다.
+ *
+ * 그래서 검사 쪽이 먼저 같은 행을 잠근다. 서버의 트랜잭션들은 직렬화 지점에서
+ * 하나도 빠짐없이 멈추고, 몇 개가 멈췄는지는 pg_locks 로 **관찰**할 수 있다.
+ * 전부 멈춘 것을 확인한 뒤 풀면 그 순간부터는 반드시 겹친다.
+ */
+export type LockHold = {
+  /** 이 잠금을 기다리다 막혀 있는 세션 수. */
+  waiting(): Promise<number>;
+  /** n 개가 막힐 때까지 기다린다. 시간 안에 못 채우면 던진다. */
+  waitFor(n: number, timeoutMs?: number): Promise<void>;
+  /** 잠금을 풀어 멈춰 있던 것들을 한꺼번에 내보낸다. */
+  release(): Promise<void>;
+};
+
+export async function holdRowLock(
+  table: string,
+  id: string,
+  key = "id",
+): Promise<LockHold> {
+  const client = new Client({ connectionString: connectionString() });
+  await client.connect();
+  await client.query("BEGIN");
+  const locked = await client.query(
+    `SELECT "${key}" FROM "${table}" WHERE "${key}" = $1 FOR UPDATE`,
+    [id],
+  );
+  if (!locked.rowCount) {
+    await client.query("ROLLBACK");
+    await client.end();
+    throw new Error(`${table} 에 ${key}=${id} 행이 없습니다.`);
+  }
+
+  // 내가 막고 있는 세션만 센다.
+  //
+  // 같은 행을 여러 세션이 기다리면 전부 내 transactionid 를 기다리는 것이 아니다.
+  // 첫 번째만 그렇고, 나머지는 그 앞사람이 쥔 tuple 잠금 뒤에 줄을 선다. 그래서
+  // 한 단계만 보면 언제나 1 로 세어진다. pg_blocking_pids 로 줄 전체를 따라간다.
+  const WAITERS = `
+    WITH RECURSIVE blocked AS (
+      SELECT a.pid
+        FROM pg_stat_activity a
+       WHERE a.datname = current_database()
+         AND pg_backend_pid() = ANY (pg_blocking_pids(a.pid))
+      UNION
+      SELECT a.pid
+        FROM pg_stat_activity a, blocked b
+       WHERE a.datname = current_database()
+         AND b.pid = ANY (pg_blocking_pids(a.pid))
+    )
+    SELECT count(*)::int AS n FROM blocked
+  `;
+
+  let released = false;
+  const waiting = async () => {
+    const r = await client.query<{ n: number }>(WAITERS);
+    return r.rows[0]?.n ?? 0;
+  };
+
+  return {
+    waiting,
+    async waitFor(n, timeoutMs = 20_000) {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const n_ = await waiting();
+        if (n_ >= n) return;
+        if (Date.now() > deadline) {
+          throw new Error(`잠금 앞에서 ${n} 개가 멈추기를 기다렸지만 ${n_} 개만 멈췄습니다.`);
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    },
+    async release() {
+      if (released) return;
+      released = true;
+      await client.query("COMMIT");
+      await client.end();
+    },
+  };
+}
+
+/** 대기 중인 초대 한 장. 보내는 흐름 자체는 team-invite.spec.ts 가 덮는다. */
+export async function createInvitation(
+  projectId: string,
+  inviterId: string,
+  invitee: { userId: string; mattermostUserId: string },
+  role: "MAINTAINER" | "CONTRIBUTOR" = "MAINTAINER",
+): Promise<{ id: string }> {
+  const id = randomUUID();
+  await withDb((db) =>
+    db.query(
+      `INSERT INTO project_invitation
+         (id,"projectId","inviterId","inviteeId","inviteeMattermostUserId",role,status,"pendingInviteeId","createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$4,now())`,
+      [id, projectId, inviterId, invitee.userId, invitee.mattermostUserId, role],
+    ),
+  );
+  return { id };
+}
+
+/** 이미 팀원인 상태를 만든다. 승인이 역할을 덮어쓰지 않는지 볼 때 쓴다. */
+export async function addMember(
+  projectId: string,
+  userId: string,
+  role: "MAINTAINER" | "CONTRIBUTOR",
+) {
+  await withDb((db) =>
+    db.query(
+      `INSERT INTO project_member (id,"projectId","userId",role,"createdAt") VALUES ($1,$2,$3,$4,now())`,
+      [randomUUID(), projectId, userId, role],
+    ),
+  );
+}
+
+/** 지금 연결된 Mattermost 사용자 id. 없으면 null. */
+export async function readMattermostUserId(userId: string): Promise<string | null> {
+  return withDb(async (db) => {
+    const r = await db.query<{ mattermostUserId: string }>(
+      `SELECT "mattermostUserId" FROM "MattermostIdentity" WHERE "userId" = $1`,
+      [userId],
+    );
+    return r.rows[0]?.mattermostUserId ?? null;
+  });
+}
