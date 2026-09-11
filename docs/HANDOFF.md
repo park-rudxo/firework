@@ -1,14 +1,16 @@
 # 지금 상태
-_2026-09-11 · Claude Opus → Astra, Astra 패치 검토 반영_
+_2026-09-11 · Claude Opus → Astra, 6bcb903 까지 확인_
 
 - 브랜치: claude/firework-reliability-team-invites. main 병합·배포 최종 검토는 Astra.
 - 앞선 3개 구현(679c3e0 설문 집계, a579540 제출 직렬화/백필, 8f02d59 초대 인증 ID)은 그대로 두고
   REVIEW.md 통과 조건에 대조만 했다. 재구현하지 않았다.
 - Astra 운영 복구 완료 상태는 그대로다. docs/recovery 의 01·02 를 운영에 다시 실행하지 않는다.
-- **push 했다. 단 배포는 건너뛰었다.** `vercel.json` 의 buildCommand 가
-  `prisma migrate deploy && next build` 라 push 가 곧 마이그레이션 적용이다. Preview DB 분리가
-  아직 확인되지 않아, 마지막 커밋 메시지에 `[skip ci]` 를 넣어 빌드 없이 GitHub 에만 올렸다.
-  **그 결과 GitHub Actions CI 도 함께 건너뛰었다** — 이 5개 커밋에 대한 CI run 이 없다.
+- **push 했다.** `vercel.json` 의 buildCommand 가 `prisma migrate deploy && next build` 라 push 가 곧
+  마이그레이션 적용이어서, Preview DB 분리가 확인되기 전까지는 커밋 메시지의 `[skip ci]` 로 빌드를
+  건너뛰고 올렸다. 그 부작용으로 GitHub Actions CI 도 함께 건너뛰었다.
+- **Astra 가 6bcb903 에서 그 전제를 바꿨다.** 이 브랜치는 `git.deploymentEnabled` 로 Vercel 배포가
+  꺼졌고, ci.yml 에 `workflow_dispatch` 와 `DIRECT_DATABASE_URL` 이 들어왔다. 이제 `[skip ci]` 없이
+  올려도 배포가 돌지 않는다 — **다음 push 부터는 붙이지 않는다.**
 
 ## 커밋 4개
 
@@ -42,8 +44,11 @@ fd2ddc1 에서 시간 근거를 통째로 뺐다. 이제 자동으로 여는 경
 | `npm run lint` | 통과 |
 | `npm test` | 184개 통과 |
 | `npm run build` | 통과 |
-| `npm run e2e` | 36개 통과 (워커 2, 실제 PostgreSQL) |
+| `npm run e2e` | **39개 통과** (워커 2, 실제 PostgreSQL 16). 6bcb903 의 수동 복구 검사 3개 포함 |
 | `npx prisma migrate deploy` | 새로 만든 빈 DB 에서 6개 전부 적용 |
+
+위 표는 **6bcb903 을 받은 뒤 다시 돌린 결과다.** Astra 가 03 스크립트를 매니페스트 방식으로 바꾸면서
+고친 백필 검사까지 포함해 전부 통과한다.
 
 되돌려 실패하는 것도 확인했다.
 
@@ -53,16 +58,18 @@ fd2ddc1 에서 시간 근거를 통째로 뺐다. 이제 자동으로 여는 경
 - 수락 버튼 이름을 틀리게 하면 → 타임아웃으로 실패한다. 예전 구조에서는 통과했다.
 - 백필을 고치기 전 SQL 로 되돌리면 → 기존 3건 공개 + 신규 1건에서 4건이 열린다.
 
-DB 통합 검사는 기존 e2e 잡에서 돈다. 새 명령이나 잡을 만들지 않았고 ci.yml 도 그대로다.
+DB 통합 검사는 기존 e2e 잡에서 돈다. 새 명령이나 잡은 만들지 않았다(ci.yml 의 `workflow_dispatch`·
+`DIRECT_DATABASE_URL` 은 6bcb903 에서 Astra 가 넣은 것이다).
 
 ## Astra가 정할 것 / 확인되지 않은 것
 
-1. **Preview DB 분리와 자동 migration 경로.** 미확인이다. push 를 보류한 이유다.
-2. **CI 가 이 커밋들에 대해 돌지 않았다.** `[skip ci]` 때문이다. 검증은 전부 로컬에서만 했고,
-   거기서는 PostgreSQL 16 이었다(CI 는 18). 쓰는 기능(`FOR UPDATE`, `pg_locks`,
-   `pg_blocking_pids`, `to_regclass`)은 양쪽 다 오래된 것이지만 18 에서는 못 돌려봤다.
-   ci.yml 에 `workflow_dispatch` 가 없어 수동 실행도 안 된다. CI 를 태우려면 PR 을 열거나
-   (`pull_request` 이벤트), `[skip ci]` 없는 커밋을 하나 더 올려야 한다 — 후자는 배포가 돈다.
+1. **CI 가 아직 이 브랜치에서 한 번도 돌지 않았다.** 마지막 CI run 은 `fb865c8` 것이다. 검증은 전부
+   로컬에서만 했고 거기서는 PostgreSQL 16 이었다(CI 는 18). 쓰는 기능(`FOR UPDATE`, `pg_locks`,
+   `pg_blocking_pids`, `to_regclass`, `55P03`)은 양쪽 다 오래된 것이지만 18 에서는 못 돌려봤다.
+   `workflow_dispatch` 로 태우려 했으나 이 세션의 GitHub 토큰에 `actions: write` 가 없어 403 이다.
+   배포가 꺼졌으니 **`[skip ci]` 없는 push 한 번이면 돈다.** 이 커밋이 그 첫 번째다.
+2. **Preview DB 분리.** 이 브랜치만 배포가 꺼졌을 뿐, 다른 브랜치·main 은 그대로다. 병합 시점에는
+   여전히 확인이 필요하다.
 3. **백필 가드가 막을 수 있는 DB.** 응답 3건 이상 + 미공개가 남아 있는 검증용 DB 가 있으면
    `migrate deploy` 가 거기서 선다. 운영은 응답 0건이라 해당 없다. 막히면 그 DB 의 설문 응답을
    비우거나, 확인 후 03 스크립트를 돌린다.
